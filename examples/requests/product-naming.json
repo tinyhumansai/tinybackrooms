@@ -1,0 +1,43 @@
+{
+  "input": {
+    "brief": "Name a coffee shop built inside a decommissioned lighthouse on a cold, foggy coast.",
+    "seeds": [
+      {"kind": "text", "text": "Regulars are night-shift fishermen and lighthouse tourists."},
+      {"kind": "reference", "text": "Old shipping-forecast vocabulary: Dogger, Fisher, German Bight."},
+      {"kind": "prior_idea", "text": "Beacon Brew"}
+    ],
+    "constraints": {
+      "must": ["be pronounceable in one breath"],
+      "must_not": ["use puns on the word 'light'"]
+    }
+  },
+  "output": {
+    "item_name": "shop name",
+    "item_guidance": "The rationale is one sentence, written for the shop owner.",
+    "schema": {
+      "type": "object",
+      "required": ["name", "rationale"],
+      "properties": {
+        "name": {"type": "string", "minLength": 2, "maxLength": 40},
+        "rationale": {"type": "string", "minLength": 10}
+      },
+      "additionalProperties": false
+    }
+  },
+  "config": {
+    "variations": 4,
+    "generations": 6,
+    "items_per_variation": 3,
+    "mode": "backrooms",
+    "template": "cli",
+    "temperature": 1.0,
+    "scoring": {
+      "scorers": [
+        {"kind": "originality", "weight": 2.0},
+        {"kind": "elaboration", "weight": 0.5}
+      ],
+      "select_top_k": 5
+    },
+    "seed": 7
+  }
+}

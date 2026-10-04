@@ -1,0 +1,67 @@
+# A standalone workspace, deliberately not a member of the root one. Examples
+# pull integration-only dependencies and must not enter the normal build; see
+# `README.md`.
+[workspace]
+resolver = "3"
+
+[package]
+name = "tinybackrooms-examples"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96"
+license = "GPL-3.0-only"
+description = "Runnable examples of the tinybackrooms generation API."
+publish = false
+
+[dependencies]
+tinybackrooms = { path = "../crates/tinybackrooms" }
+tinybackrooms-api = { path = "../crates/tinybackrooms-api" }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+# The workspace lint set does not reach a standalone workspace, so the same
+# levels are repeated here to keep examples held to the same bar.
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# `tinybackrooms-api` has an optional dependency on the OpenHuman adapter, and
+# cargo resolves optional dependencies into the lockfile even when the feature is
+# off. The root workspace's `[patch]` tables do not cross this standalone
+# workspace boundary, so without these the lockfile would fetch OpenHuman and the
+# tool crates fresh from git instead of reusing the vendored submodule. Keep this
+# in sync with the root `[patch]`.
+[patch."https://github.com/tinyhumansai/openhuman"]
+openhuman-embed = { path = "../vendor/openhuman/crates/openhuman-embed" }
+openhuman = { path = "../vendor/openhuman/crates/openhuman-core" }
+
+[patch."https://github.com/tinyhumansai/tinytools"]
+tinytools = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinytools/crates/tinytools" }
+tinytools-agent = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinytools/crates/tinytools-agent" }
+
+[patch."https://github.com/tinyhumansai/tinymemory"]
+tinymemory-api = { path = "../vendor/openhuman/vendor/tinymemory/crates/tinymemory-api" }
+tinymemory-safety = { path = "../vendor/openhuman/vendor/tinymemory/crates/tinymemory-safety" }
+
+[patch."https://github.com/tinyhumansai/tinyinference"]
+tinyinference-core = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-core" }
+tinyinference-embeddings = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-embeddings" }
+tinyinference-llm = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-llm" }
+tinyinference-local = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-local" }
+tinyinference-providers = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-providers" }
+tinyinference-voice = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-voice" }
+
+[patch.crates-io]
+tinyinference-core = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-core" }
+tinyinference-embeddings = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-embeddings" }
+tinyinference-llm = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-llm" }
+tinyinference-local = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-local" }
+tinyinference-providers = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-providers" }
+tinyinference-voice = { path = "../vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-voice" }

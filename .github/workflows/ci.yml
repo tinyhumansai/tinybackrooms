@@ -26,6 +26,7 @@ jobs:
           # This job executes repository code (cargo build/test); don't persist
           # the token in git config.
           persist-credentials: false
+          # `vendor/openhuman` and the submodules nested inside it.
           submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
@@ -53,34 +54,28 @@ jobs:
       - name: Test default features
         run: cargo test
 
-      # `cargo build --all-targets` only *compiles* an example. `AGENTS.md`
-      # promises `cargo run -p template --example basic` works, and a compiled
-      # example can still fail on its first line.
-      - name: Run the bundled example
-        run: cargo run -p template --example basic
+      # The examples are a standalone workspace, so the commands above never
+      # touch them. Build, lint and test them here, then run the bundled
+      # request files: `cargo build` only *compiles* a binary, and a compiled
+      # one can still fail on its first line.
+      - name: Lint the examples
+        run: cargo clippy --manifest-path examples/Cargo.toml --all-targets -- -D warnings
 
-      # `crates/template-bus` exists so a host can name the payload types
-      # without compiling the module. That promise is invisible in a diff,
-      # because a forbidden dependency arrives transitively through a feature
-      # someone enabled one crate away — so it is asserted rather than
-      # documented.
-      #
-      # The FORWARD form is required. `cargo tree -i <crate> -p template-bus`
-      # discards the `-p` scope, prints the whole-workspace inverse tree, and
-      # exits 0 looking clean even when this crate is the one at fault.
-      - name: Assert the contract crate stays transport-free
-        run: |
-          set -euo pipefail
-          forbidden="$(cargo tree -p template-bus -e normal,build --prefix none \
-            | grep -Ei 'tinybus|tokio|reqwest|ureq|hyper|rusqlite|git2' || true)"
-          if [ -n "$forbidden" ]; then
-            echo "template-bus pulled in a dependency its manifest forbids:" >&2
-            echo "$forbidden" >&2
-            echo >&2
-            echo "The contract is what a host compiles against. It must stay free" >&2
-            echo "of transports, async runtimes, HTTP clients and native libraries." >&2
-            exit 1
-          fi
+      - name: Test the examples
+        run: cargo test --manifest-path examples/Cargo.toml
+
+      - name: Run the bundled examples offline
+        run: cargo run --manifest-path examples/Cargo.toml --bin offline
+
+      # `[patch]` builds this workspace against the vendored OpenHuman while a
+      # consumer builds against the `rev`; if they drift, nothing else says so.
+      - name: Assert the OpenHuman pin matches the submodule
+        run: .github/scripts/assert-openhuman-pin.sh
+
+      # The engine owns the pipeline and reaches everything else through ports.
+      # See the script for why this is asserted rather than documented.
+      - name: Assert the engine stays free of runtimes and transports
+        run: .github/scripts/assert-pure.sh
 
       - name: Require 90% line coverage in every source file
         run: .github/scripts/check-file-coverage.sh 90 coverage.json
@@ -100,6 +95,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          # `vendor/openhuman` and the submodules nested inside it.
           submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
@@ -118,17 +114,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          # `vendor/openhuman` and the submodules nested inside it.
           submodules: recursive
 
       # `rust-version` is inherited from `[workspace.package]`, so every member
-      # reports the same value. Read it off the package the module ships as
-      # rather than off `packages[0]`, whose order cargo does not promise.
+      # reports the same value. Read it off the engine package rather than off
+      # `packages[0]`, whose order cargo does not promise.
       - name: Read rust-version from Cargo.toml
         id: msrv
         run: |
           set -euo pipefail
           msrv="$(cargo metadata --format-version 1 --no-deps \
-            | jq -r '.packages[] | select(.name == "template") | .rust_version')"
+            | jq -r '.packages[] | select(.name == "tinybackrooms") | .rust_version')"
           if [[ -z "$msrv" || "$msrv" == "null" ]]; then
             echo "workspace.package.rust-version is not set in Cargo.toml" >&2
             exit 1
@@ -151,6 +148,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          # `vendor/openhuman` and the submodules nested inside it.
           submodules: recursive
 
       - name: Check advisories, licenses, bans, and sources

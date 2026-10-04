@@ -1,0 +1,36 @@
+{
+  "input": {
+    "brief": "Hypotheses for why sourdough starters from different regions converge on similar microbial communities.",
+    "seeds": [
+      {"kind": "text", "text": "Observation: starters kept in different kitchens drift toward the same few yeast and bacteria species within weeks."}
+    ],
+    "constraints": {
+      "must": ["name an experiment that could falsify it"],
+      "must_not": ["rely on unmeasurable variables"]
+    },
+    "memory_namespace": "sourdough-hypotheses"
+  },
+  "output": {
+    "item_name": "hypothesis",
+    "schema": {
+      "type": "object",
+      "required": ["claim", "mechanism", "falsifier", "confidence"],
+      "properties": {
+        "claim": {"type": "string", "minLength": 10},
+        "mechanism": {"type": "string", "minLength": 10},
+        "falsifier": {"type": "string", "minLength": 10},
+        "confidence": {"enum": ["low", "medium", "high"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "config": {
+    "variations": 3,
+    "generations": 4,
+    "items_per_variation": 2,
+    "mode": "brainstorm",
+    "temperature": 0.9,
+    "scoring": {"select_top_k": 4},
+    "seed": 3
+  }
+}

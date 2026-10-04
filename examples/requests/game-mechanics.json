@@ -1,0 +1,44 @@
+{
+  "input": {
+    "brief": "Core mechanics for a cooperative board game about maintaining a lighthouse through a long storm.",
+    "seeds": [
+      {"kind": "reference", "text": "Hanabi (hidden information), Pandemic (shared pressure), Dixit (interpretation)."},
+      {"kind": "prior_idea", "text": "Roll dice to see which lamp fails."}
+    ],
+    "constraints": {
+      "must": ["playable in 30 minutes", "two to five players"],
+      "must_not": ["use dice", "have a traitor role"]
+    }
+  },
+  "output": {
+    "item_name": "game mechanic",
+    "item_guidance": "`how_it_feels` is one sentence from a player's point of view.",
+    "schema": {
+      "type": "object",
+      "required": ["name", "rule", "how_it_feels", "tags"],
+      "properties": {
+        "name": {"type": "string", "minLength": 3},
+        "rule": {"type": "string", "minLength": 20},
+        "how_it_feels": {"type": "string", "minLength": 10},
+        "tags": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 4}
+      },
+      "additionalProperties": false
+    }
+  },
+  "config": {
+    "variations": 6,
+    "generations": 8,
+    "items_per_variation": 2,
+    "mode": "backrooms",
+    "template": "fugue",
+    "scoring": {
+      "scorers": [
+        {"kind": "originality", "weight": 1.0},
+        {"kind": "elaboration", "weight": 1.0}
+      ],
+      "class_threshold": 0.7,
+      "select_top_k": 6
+    },
+    "seed": 21
+  }
+}

@@ -28,10 +28,10 @@ docs/
 Complex modules also carry a module-level `README.md` inside `src/<module>/`
 covering their design, public surface, and important constraints.
 
-The current module-release contract is in
-[`specs/tinybus-module-release.md`](specs/tinybus-module-release.md), with its
-implementation sequence in
-[`plans/tinybus-module-release.md`](plans/tinybus-module-release.md).
+Start with [`specs/generate-api.md`](specs/generate-api.md) for the contract,
+[`specs/backrooms-engine.md`](specs/backrooms-engine.md) for how ideas are made,
+and [`specs/scoring.md`](specs/scoring.md) for how they are judged. The
+decisions behind the shape are in `adr/0002` to `adr/0004`.
 
 ## Conventions
 

@@ -10,8 +10,8 @@ all-features = true
 ignore = []
 
 [licenses]
-# Licenses accepted for this crate and its dependencies. Keep GPL-3.0-only for
-# the template crate itself; the remaining entries cover compatible dependency
+# Licenses accepted for this workspace and its dependencies. Keep GPL-3.0-only
+# for the crates themselves; the remaining entries cover compatible dependency
 # licenses commonly encountered by Rust projects.
 allow = [
     "Apache-2.0",
@@ -20,8 +20,15 @@ allow = [
     "BSD-3-Clause",
     "CDLA-Permissive-2.0",
     "GPL-3.0-only",
+    # The OpenHuman-ecosystem crates (`tinyjuice` and one sibling) are
+    # `GPL-3.0-or-later`, which is compatible with this workspace's
+    # `GPL-3.0-only`.
+    "GPL-3.0-or-later",
     "ISC",
     "MIT",
+    # MIT No Attribution: MIT without the notice requirement. OSI approved and
+    # GPL-3.0 compatible; `borrow-or-share` uses it, reached through `jsonschema`.
+    "MIT-0",
     "MPL-2.0",
     "Unicode-3.0",
     "Zlib",
@@ -42,6 +49,14 @@ wildcards = "deny"
 # manifest sets `publish = false`. A wildcard on anything from a registry is
 # still denied, which is what this check exists for.
 allow-wildcard-paths = true
+# `tinyjuice` is vendored inside OpenHuman. Its manifest carries no
+# `publish = false`, so `allow-wildcard-paths` does not reach it: cargo-deny reads
+# its internal git dependency on `tinytools` as a wildcard even though nothing
+# resolves through a range, because the whole tree is revision-pinned and
+# `.github/scripts/assert-openhuman-pin.sh` holds it to the recorded submodule.
+# This skips that one package's manifest-level wildcard finding only; its
+# dependency tree stays subject to every other ban.
+skip = [{ name = "tinyjuice", version = "0.6.0" }]
 # Crates that must never enter the dependency graph.
 deny = []
 

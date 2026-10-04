@@ -2,55 +2,75 @@
 resolver = "3"
 # Every crate in this repository lives under `crates/`, one directory per
 # package, each directory named for the package it holds. There is no root
-# package: the crate a host loads is `crates/template`, the same as any other
-# member. Keeping the root virtual is what makes that uniform — a root package
-# would make one crate structurally different from the rest for no reason other
-# than history, and it is the arrangement this template moved away from.
+# package: the engine is `crates/tinybackrooms` and the HTTP server is
+# `crates/tinybackrooms-api`, two ordinary members.
 members = ["crates/*"]
-# `vendor/` holds the pinned TinyBus submodule, which is its own workspace with
-# its own lockfile. `worktrees/` holds `git worktree` checkouts of this same
+# `vendor/` holds the pinned OpenHuman submodule, which is its own workspace
+# with its own lockfile. `worktrees/` holds `git worktree` checkouts of this same
 # repository; each contains a full copy of this manifest and every crate under
 # it, so without this entry cargo walks into them and reports duplicate
-# packages.
-exclude = ["vendor", "worktrees"]
+# packages. `examples/` is a standalone workspace with its own lockfile (see
+# `examples/README.md`), so integration-only dependencies never enter the
+# normal build.
+exclude = ["vendor", "worktrees", "examples"]
 
 # Shared package metadata. A member inherits a field with `field.workspace =
-# true`, so the version the release workflow bumps is written in exactly one
-# place and every crate moves together.
+# true`, so the version is written in exactly one place and every crate moves
+# together.
 [workspace.package]
 version = "0.2.1"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.96"
 license = "GPL-3.0-only"
-repository = "https://github.com/tinyhumansai/rust-template"
+repository = "https://github.com/tinyhumansai/tinybackrooms"
 
 [workspace.dependencies]
-# The wire contract. `crates/template` depends on it and re-exports it, so a
-# host that only makes calls takes this crate alone.
-# No `version` requirement on purpose: the workspace version moves on every
-# release, and a pinned requirement here would stop resolving the moment it did.
-# Nothing in this workspace is published, so the path is the whole address.
-template-bus = { path = "crates/template-bus" }
-# TinyBus defines the message types, interface macro, and frozen module ABI
-# used by the generated integration. Socket and CLI features are unnecessary
-# here.
-tinybus = { path = "vendor/tinybus/crates/tinybus", version = "0.1.0", default-features = false, features = [
-    "macros",
-    "modules",
-] }
-# The module-side SDK owns the isolated runtime and exports the ABI entrypoints
-# required by TinyBus's dynamic loader.
-tinybus-module = { path = "vendor/tinybus/crates/tinybus-module", version = "0.1.0" }
-# Derive macros for the crate-wide error type in `crates/template/src/error/`.
-# Every dependency entry should carry a comment like this one saying why it is
-# here.
+# The engine crate. The API crate and the examples depend on it by path; nothing
+# in this workspace is published, so the path is the whole address.
+tinybackrooms = { path = "crates/tinybackrooms" }
+# The OpenHuman backend, selected by the API crate's `openhuman` feature.
+tinybackrooms-openhuman = { path = "crates/tinybackrooms-openhuman" }
+# Derive macros for the crate-wide error type in `crates/tinybackrooms/src/error/`.
 thiserror = "2"
-# The bus payload types are serialized into TinyBus frames.
+# Request, response, and event types are serialized on the wire.
 serde = { version = "1", features = ["derive"] }
-# Positional argument arrays and the module configuration blob.
+# The output schema and every generated item are free-form JSON values.
 serde_json = "1"
-# Module integration tests exercise the real asynchronous in-memory TinyBus.
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+# Runtime-agnostic combinators: the engine runs variations concurrently with
+# `join_all` without linking an async runtime.
+futures = { version = "0.3", default-features = false, features = ["std"] }
+# Validates every generated item against the caller's output schema. Default
+# features are off because they pull in an HTTP client for remote `$ref`s, which
+# a creative-generation request has no business resolving.
+jsonschema = { version = "0.58", default-features = false }
+# The HTTP server's runtime, and the test runtime for the engine's async behavior.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "signal", "sync", "io-util"] }
+# Drives the router in tests without opening a socket.
+tower = { version = "0.5", features = ["util"] }
+# The HTTP routing layer for `crates/tinybackrooms-api`.
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
+# Adapts the engine's progress channel into a server-sent-event stream.
+tokio-stream = "0.1"
+# OpenHuman is a git dependency pinned by `rev`, not the vendored path, so a host
+# that vendors this repository can unify the two copies with `[patch]` (a patch
+# can redirect a git source onto a path but cannot redirect a path source). The
+# `[patch]` tables at the bottom point the same sources at `vendor/openhuman` for
+# this repository's own build; `.github/scripts/assert-openhuman-pin.sh` checks
+# the `rev` equals the submodule pointer. `openhuman-embed` runs agents and
+# turns; `openhuman` supplies the usage types it returns. Only the adapter
+# crate links them.
+openhuman-embed = { git = "https://github.com/tinyhumansai/openhuman", rev = "964da96df7828e700918a25bf180fd4067b412d7", default-features = false, features = ["mcp", "modules", "skills"] }
+openhuman = { git = "https://github.com/tinyhumansai/openhuman", rev = "964da96df7828e700918a25bf180fd4067b412d7", default-features = false }
+# `tinytools::Tool` is the trait a host tool implements. Pinned at the commit
+# OpenHuman's own tree vendors, which is what makes the unification exact.
+tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "8e5008c375f9e717e6cbb81fa9532599b98ff0a8" }
+# `Tool::execute` is an `async fn` in a trait object, which needs the macro.
+async-trait = "0.1"
+# `Tool::execute` returns `anyhow::Result`, so implementing it means naming the
+# type. It stays inside the adapter crate.
+anyhow = "1"
+# The adapter's fake OpenAI-compatible provider in its own tests.
+wiremock = "0.6"
 
 # Lints apply to every member that opts in with `[lints] workspace = true`, and
 # to every target of that member. CI runs clippy with `-D warnings`, so anything
@@ -88,3 +108,40 @@ private_intra_doc_links = "warn"
 lto = "thin"
 codegen-units = 1
 strip = "debuginfo"
+
+# Resolve the git `openhuman-embed` above onto the vendored submodule so this
+# workspace builds against exactly the tree it records. The `rev` above and the
+# submodule pointer must agree; `.github/scripts/assert-openhuman-pin.sh` fails
+# the build when they drift.
+[patch."https://github.com/tinyhumansai/openhuman"]
+openhuman-embed = { path = "vendor/openhuman/crates/openhuman-embed" }
+openhuman = { path = "vendor/openhuman/crates/openhuman-core" }
+
+# The tool crates, onto the copy inside the vendored OpenHuman, the one OpenHuman
+# itself resolves them from, so a host tool's `Tool` is the harness's `Tool`.
+[patch."https://github.com/tinyhumansai/tinytools"]
+tinytools = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinytools/crates/tinytools" }
+tinytools-agent = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinytools/crates/tinytools-agent" }
+
+# Keep the memory and inference packages on the OpenHuman submodule copies.
+# OpenHuman's own patches do not apply when this repository is the workspace
+# root, and its crates.io consumers must resolve to these same types.
+[patch."https://github.com/tinyhumansai/tinymemory"]
+tinymemory-api = { path = "vendor/openhuman/vendor/tinymemory/crates/tinymemory-api" }
+tinymemory-safety = { path = "vendor/openhuman/vendor/tinymemory/crates/tinymemory-safety" }
+
+[patch."https://github.com/tinyhumansai/tinyinference"]
+tinyinference-core = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-core" }
+tinyinference-embeddings = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-embeddings" }
+tinyinference-llm = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-llm" }
+tinyinference-local = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-local" }
+tinyinference-providers = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-providers" }
+tinyinference-voice = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-voice" }
+
+[patch.crates-io]
+tinyinference-core = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-core" }
+tinyinference-embeddings = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-embeddings" }
+tinyinference-llm = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-llm" }
+tinyinference-local = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-local" }
+tinyinference-providers = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-providers" }
+tinyinference-voice = { path = "vendor/openhuman/vendor/tinyagents/vendor/tinyinference/crates/tinyinference-voice" }

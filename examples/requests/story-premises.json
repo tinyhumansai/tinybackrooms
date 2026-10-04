@@ -1,0 +1,41 @@
+{
+  "input": {
+    "brief": "Premises for a short story where a small, ordinary object quietly changes how a town keeps time.",
+    "seeds": [
+      {"kind": "text", "text": "Literary, slightly uncanny, no magic system."},
+      {"kind": "reference", "text": "Borges's 'The Library of Babel'; Calvino's 'Invisible Cities'."}
+    ],
+    "constraints": {"must_not": ["end with it being a dream"]}
+  },
+  "output": {
+    "item_name": "story premise",
+    "schema": {
+      "type": "object",
+      "required": ["title", "premise", "turn"],
+      "properties": {
+        "title": {"type": "string", "minLength": 3},
+        "premise": {"type": "string", "minLength": 40},
+        "turn": {"type": "string", "description": "The moment the premise stops being a gimmick."}
+      }
+    }
+  },
+  "config": {
+    "variations": 3,
+    "generations": 6,
+    "items_per_variation": 2,
+    "mode": "critic_pair",
+    "template": "student",
+    "models": {"agent_a": "model-a", "agent_b": "model-b", "judge": "model-c"},
+    "scoring": {
+      "scorers": [
+        {"kind": "judge", "weight": 2.0},
+        {"kind": "originality", "weight": 1.0}
+      ],
+      "judge_raters": 3,
+      "select_top_k": 4
+    },
+    "budget": {"max_turns": 8, "wall_clock_secs": 120, "repair_attempts": 2},
+    "include_transcripts": true,
+    "seed": 11
+  }
+}

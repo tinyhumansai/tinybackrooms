@@ -1,0 +1,39 @@
+[package]
+name = "tinybackrooms-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "HTTP server for the tinybackrooms creativity engine: one request in, ranked typed items out."
+readme = "../../README.md"
+keywords = ["creativity", "http", "api", "llm", "structured-output"]
+categories = ["web-programming::http-server"]
+publish = false
+
+[dependencies]
+tinybackrooms = { workspace = true }
+# The OpenHuman backend. Optional because it links the whole OpenHuman harness.
+tinybackrooms-openhuman = { workspace = true, optional = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tower = { workspace = true }
+# A fake OpenAI-compatible provider for the end-to-end OpenHuman test.
+wiremock = { workspace = true }
+# Reads and writes the raw sockets the serve test talks to.
+tokio = { workspace = true, features = ["io-util"] }
+
+[features]
+default = []
+# Serve requests with OpenHuman agents (`TINYBACKROOMS_BACKEND=openhuman`).
+# Off by default: it links the OpenHuman harness and needs Rust 1.96.
+openhuman = ["dep:tinybackrooms-openhuman"]
+
+[lints]
+workspace = true

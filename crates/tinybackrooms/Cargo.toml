@@ -1,0 +1,28 @@
+[package]
+name = "tinybackrooms"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A configurable creativity engine: agents talk in an Infinite-Backrooms loop and the result is scored and returned as typed output."
+readme = "../../README.md"
+keywords = ["creativity", "agents", "llm", "structured-output", "backrooms"]
+categories = ["algorithms"]
+publish = false
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+futures = { workspace = true }
+jsonschema = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[features]
+default = []
+
+[lints]
+workspace = true

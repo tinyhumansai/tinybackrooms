@@ -4,87 +4,76 @@ This file is the single source of truth for how humans and coding agents work
 in this repository. `CLAUDE.md` is a symlink to this file, so every agent reads
 the same instructions.
 
-When you generate a new project from this template, keep this file and adapt
-the project-specific parts (crate name, module map, feature flags, commands).
-Delete guidance that no longer applies rather than leaving it to rot.
-
-## Template Checklist
-
-Do this once, in a single commit, before writing feature code:
-
-- [ ] Rename `crates/template` and `crates/template-bus` to the project's crate
-      names, and update `name` in each manifest plus the `template-bus` entry in
-      the root `[workspace.dependencies]`.
-- [ ] Set `description`, `keywords`, and `categories` in each manifest, and
-      `repository` in the root `[workspace.package]`.
-- [ ] Rename the crate references in `README.md`, both `src/lib.rs` files,
-      `crates/template/examples/`, and `crates/template/tests/` (search for
-      `template` and `template_bus`).
-- [ ] Replace the placeholder `greeting` module in both crates with the first
-      real feature area — payload types in the contract crate, behavior in the
-      module crate — keeping the `mod.rs` / `types.rs` / `test.rs` layout.
-- [ ] Confirm `license` and `LICENSE` match the project's intended license.
-- [ ] Update the security contact in `SECURITY.md`.
-- [ ] Rename the TinyBus interface, object path, and member constants in
-      `crates/template-bus/src/names/`, and the matching `provides` / `methods`
-      declarations in `crates/template/src/tinybus_module/`, while keeping
-      `vendor/tinybus` pinned.
-- [ ] Reset `CONTRACT_VERSION` in `crates/template-bus/src/version/` for the new
-      contract.
-- [ ] Replace `ROADMAP.md` with the real plan, or delete it.
-- [ ] Rewrite the "Project Structure" section below to describe this workspace.
-
 ## Project Structure
 
 This is a Rust 2024 cargo workspace rooted at a virtual `Cargo.toml`. Every
 crate lives under `crates/`, one directory per package, each directory named for
-the package it holds. There is no root package: the crate that ships as the
-loadable module is `crates/template`, the same as any other member.
+the package it holds. There is no root package.
+
+`tinybackrooms` is a creativity engine: one request (`input`, `output` spec,
+`config`) goes in, ranked schema-valid items come out. Agents converse in the
+style of Infinite Backrooms, a formatter turns the transcript into typed items,
+and scorers rank them. See `docs/specs/` for the contract and the research.
 
 ```text
 Cargo.toml              # virtual workspace: members, [workspace.package],
                         # [workspace.dependencies], [workspace.lints]
 crates/
-├── template-bus/       # the wire contract: what crosses the bus, nothing else
-│   ├── README.md       # why the contract is its own crate
-│   └── src/
-│       ├── lib.rs      # crate docs + the entire public re-export surface
-│       ├── names/      # interface, object path, one constant per member
-│       ├── version/    # contract version and the host bind rule
-│       └── <family>/   # one directory per payload family
-└── template/           # the module: behavior, adapter, and the cdylib
-    ├── src/
-    │   ├── lib.rs      # crate docs + public surface, re-exporting the contract
-    │   ├── error/mod.rs      # crate-wide `Error` and `Result<T>`
-    │   ├── tinybus_module/   # TinyBus interface, ABI exports, integration tests
-    │   └── <feature>/        # one directory per feature area
-    │       ├── mod.rs        # module docs, wiring, smallest useful public API
-    │       ├── types.rs      # substantial type definitions
-    │       └── test.rs       # module-local unit tests
-    ├── tests/          # integration tests against the public API only
-    └── examples/       # runnable, compiled-in-CI usage examples
-vendor/tinybus/         # pinned TinyBus host types and module SDK
+├── tinybackrooms/      # the engine: ALL logic, behind ports
+│   ├── src/
+│   │   ├── lib.rs      # crate docs + the entire public re-export surface
+│   │   ├── error/      # crate-wide `Error` and `Result<T>`
+│   │   ├── request/    # GenerateRequest, Context, OutputSpec, RunConfig
+│   │   ├── response/   # GenerateResponse, ScoredItem, Diversity
+│   │   ├── conversant/ # the model port + ScriptedConversant
+│   │   ├── memory/     # the memory port + InMemoryMemory
+│   │   ├── embed/      # the embedder port + HashingEmbedder, cosine
+│   │   ├── backrooms/  # prompts, lens draw, the conversation loop
+│   │   ├── extract/    # typed extraction and the repair loop
+│   │   ├── score/      # scorers, judge, diversity metrics, ranking
+│   │   ├── engine/     # Engine::generate, the whole pipeline
+│   │   ├── progress/   # Event and Observer
+│   │   └── rng/        # a tiny seeded generator
+│   └── tests/          # integration tests against the public API only
+├── tinybackrooms-openhuman/  # the engine's Conversant on OpenHuman agents
+│   ├── src/            # config/, agents/, submit/, stub/, conversant/
+│   └── tests/          # real agents against a fake model provider
+└── tinybackrooms-api/  # the axum server around the engine
+    ├── src/            # config/, demo/, routes/, lib.rs, main.rs
+    └── tests/          # runs the real binary
+examples/               # STANDALONE workspace: request files + offline runner
+vendor/openhuman/       # pinned OpenHuman submodule (see Vendored dependencies)
 docs/
 ├── specs/              # behavior and architecture specifications
 ├── plans/              # test-first implementation plans
 └── adr/                # immutable architecture decision records
 ```
 
-### The two-crate split
+### The engine and the API
 
-`crates/template-bus` holds every type that crosses the bus and the names of the
-members that carry them. It has no transport, no runtime, and no behavior, and
-CI asserts it stays that way. A host that only makes calls depends on it alone.
+`crates/tinybackrooms` holds every piece of creative logic and reaches the
+outside world only through ports: `Conversant` (models), `Memory` (recall and
+store), `Embedder` (vectors) and `Observer` (progress). It links no async
+runtime and no HTTP client, so the whole pipeline is tested with
+`ScriptedConversant` and nothing touches a network. Per-turn timeouts belong to
+the backend because the engine has no timer.
 
-`crates/template` depends on it and re-exports all of it, so
-`template::GreetRequest` and `template_bus::GreetRequest` are the *same* type
-rather than structural twins. That direction is load-bearing: a parallel set of
-payload types for hosts would mean a conversion at every call site that nothing
-checks.
+`crates/tinybackrooms-api` is transport only: it decodes a request, calls
+`Engine::generate`, and maps errors to status codes. Do not put creative logic
+in it. The rule for deciding where something goes: if it decides what is
+generated, extracted or scored, it belongs in the engine; if it decides how a
+request arrives or a response leaves, it belongs in the API crate.
 
-The rule for deciding where something goes: a payload type describes what a
-frame carries and belongs in the contract; anything that answers a frame, holds
-a connection, or touches an engine belongs in the module crate.
+`crates/tinybackrooms-openhuman` is the only crate that links the OpenHuman
+harness. It implements `Conversant` on OpenHuman agents (one agent per seat, a
+fresh seeded session per turn, typed output through a host tool). It is a
+separate crate, not a feature of the engine, so the engine's purity check
+stays true under `--all-features`. The API crate reaches it only through its
+optional `openhuman` feature.
+
+`examples/` is a standalone workspace with its own lockfile, so
+integration-only dependencies never enter the normal build. It is excluded from
+the root workspace.
 
 Add a crate by creating `crates/<name>/` — `members = ["crates/*"]` picks it up
 by existing. Inherit `version`, `edition`, `rust-version`, `license`, and
@@ -114,7 +103,7 @@ broad ones.
 
 Keep public exports centralized in each crate's `src/lib.rs` so downstream users
 have one predictable surface. Put shared error variants in
-`crates/template/src/error/mod.rs` and return the crate-wide `Result<T>` from
+`crates/tinybackrooms/src/error/mod.rs` and return the crate-wide `Result<T>` from
 fallible public APIs.
 
 ## Build And Test
@@ -133,8 +122,13 @@ Supporting commands:
 
 - `cargo fmt --all` — format before committing.
 - `cargo test <filter>` — run a focused subset while iterating.
-- `cargo test -p template-bus` — run one crate's suite.
-- `cargo run -p template --example basic` — run the bundled example.
+- `cargo test -p tinybackrooms` — run one crate's suite.
+- `cargo run -p tinybackrooms-api` — start the server on `127.0.0.1:8080`
+  (add `--features openhuman` and `TINYBACKROOMS_BACKEND=openhuman` to run
+  OpenHuman agents).
+- `cargo run --manifest-path examples/Cargo.toml --bin offline` — run the
+  bundled request files offline.
+- `cargo test --manifest-path examples/Cargo.toml` — the examples' own tests.
 - `cargo doc --no-deps --all-features` — build the rustdoc CI also builds with
   `RUSTDOCFLAGS="-D warnings"`.
 - `cargo test --doc` — run doctests alone when editing documentation examples.
@@ -185,8 +179,9 @@ add one:
 - gate anything optional behind a Cargo feature, documented in `Cargo.toml`;
 - declare it once in the root `[workspace.dependencies]` when more than one
   crate needs it, and take it with `{ workspace = true }`;
-- never add one to `crates/template-bus` that pulls in a transport, an async
-  runtime, an HTTP client, or a native library — CI fails the build if you do;
+- never add one to `crates/tinybackrooms` that pulls in an async runtime, an
+  HTTP client, or a native library — the engine reaches those only through its
+  ports, and CI fails the build if you do;
 - leave a comment above the entry explaining *why* the crate is needed and what
   uses it — see the existing entries for the expected tone;
 - prefer well-maintained crates with a compatible license.
@@ -196,18 +191,24 @@ releases are reproducible.
 
 ### Vendored dependencies
 
-TinyBus is registered as the `vendor/tinybus` git submodule and pinned by its
-gitlink. It supplies the host types and module-side SDK required to build this
-crate's `cdylib`. Initialize it after cloning with:
+OpenHuman is registered as the `vendor/openhuman` git submodule. Root
+`Cargo.toml` names it as git dependencies pinned by `rev`, and `[patch]` tables
+redirect those same sources onto the submodule for this repository's own build,
+so a host that vendors this repository can unify the two copies. The `rev`s and
+the submodule pointer must agree: `.github/scripts/assert-openhuman-pin.sh`
+checks it in CI, so bump them together, in one commit. The `examples/` workspace
+repeats the `[patch]` tables because patches do not cross a workspace boundary.
+Initialize after cloning with:
 
 ```sh
-git submodule update --init --recursive
+git submodule update --init --recursive --depth 1
 ```
 
-Do not edit vendored code from the parent repository. Make TinyBus changes in
-its own repository, push them there, then update this repository's gitlink in a
-separate commit. Keep the exact path dependencies and minimal features unless a
-new module capability requires more.
+Do not edit vendored code from this repository: change it in its own
+repository, push it there, then update the gitlink in a separate commit.
+
+OpenHuman allows one `Runtime` per process and needs a tokio worker stack of
+16 MiB; `tinybackrooms-api` builds its runtime accordingly.
 
 ## Testing
 
@@ -290,25 +291,12 @@ explicitly declined with a reason.
 
 ## Releases
 
-Releases run from `.github/workflows/release.yml` via a manual
-`workflow_dispatch` with a `patch` / `minor` / `major` bump; `current` resumes
-an interrupted release after its version commit and tag exist. The workflow
-re-runs the full validation suite, computes the next version, updates
-the root `[workspace.package]` version and `Cargo.lock`, commits and tags
-`vX.Y.Z`, builds `crates/template` as a TinyBus module for every supported
-platform, pushes, and creates an immutable GitHub release with installable
-native packages.
-
-Consequently:
-
-- Do not hand-edit the `version` field in the root `[workspace.package]`; the
-  release workflow owns it. Every member inherits it with
-  `version.workspace = true`, so the whole workspace releases as one version.
-- Follow semantic versioning. Any change to the public surface that is not
-  purely additive is a breaking change and needs a major bump (pre-1.0: a minor
-  bump).
-- The module must be packageable for every release target — `main` should
-  always be green.
+Nothing in this workspace is published, and there is no release workflow:
+consumers pin a git commit. Do not hand-edit `version` in the root
+`[workspace.package]`; every member inherits it with `version.workspace = true`.
+Follow semantic versioning when a tag is cut: any change to the public surface
+that is not purely additive is breaking (pre-1.0: a minor bump). `main` should
+always be green.
 
 ## Agent Working Agreement
 
