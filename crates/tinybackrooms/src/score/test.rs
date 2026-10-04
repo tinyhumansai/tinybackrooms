@@ -445,8 +445,8 @@ async fn the_shuffle_is_fixed_by_the_seed() {
             &backend,
         )
         .await;
-        let prompt = seen.lock().unwrap()[0].clone();
-        prompt
+        let prompts = seen.lock().unwrap();
+        prompts[0].clone()
     };
     assert_eq!(order(7).await, order(7).await);
     assert_ne!(order(7).await, order(8).await);
