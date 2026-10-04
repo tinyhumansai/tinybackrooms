@@ -16,6 +16,8 @@ Arms:
     static-k   K independent calls at the run temperature (breadth, no dialogue)
     brainstorm tinybackrooms, one agent, K variations
     backrooms  tinybackrooms, two agents, K variations of G turns
+    evolve     AlphaEvolve-style: K candidates, then rounds of critique, mutation
+               and recombination of the best, ranked by a gold-free listwise judge
 
 The tinybackrooms arms need the API running (see README.md).
 """
@@ -44,7 +46,7 @@ CB_DIR = Path(os.environ.get("CREATIVITYBENCH_DIR", CACHE / "CreativityBench"))
 FULL_TASKS = Path(os.environ.get("CB_FULL_TASKS", CACHE / "tasks_full.json"))
 DATASET_ID = "1C7PqRknVjdj4OBpVPT22Opo167lHNyjs"
 OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
-ARMS = ("static", "static-k", "brainstorm", "backrooms")
+ARMS = ("static", "static-k", "brainstorm", "backrooms", "evolve")
 LOCK = threading.Lock()
 
 ANSWER_SCHEMA = {
@@ -254,11 +256,148 @@ def arm_tinybackrooms(utils, task, args, mode):
     }
 
 
+
+RANKER = """You are a strict reviewer comparing candidate answers to a creative tool-repurposing task.
+
+{scene}
+
+Candidate answers:
+{candidates}
+
+Check each candidate: the entity and part exist in the scene (names match exactly); the part's
+described material, shape, size and state really enable the action; every condition of the task is
+met with nothing from outside the scene; the steps are feasible and safe; and the part is a natural
+fit rather than a stretch. Penalise anything that relies on a property the description does not give.
+
+Reply with JSON only: {{"ranking": [<candidate numbers, best first>],
+"critiques": {{"<number>": "<the one most serious flaw, or 'none'>"}}}}"""
+
+MUTATE = """{scene}
+
+Here is a candidate answer to the task:
+entity: {entity}
+part: {part}
+how: {how}
+
+A reviewer found this flaw: {critique}
+
+Write a better answer. If the flaw shows this part cannot do the job, switch to a different entity
+and part from the scene. Names must match the scene exactly. First reason briefly, then end with a
+JSON object with the fields gold_entity, gold_part and how_to_use."""
+
+RECOMBINE = """{scene}
+
+Two candidate answers to the task, with a reviewer's flaw for each:
+
+[A] entity: {a_entity}; part: {a_part}
+    how: {a_how}
+    flaw: {a_critique}
+
+[B] entity: {b_entity}; part: {b_part}
+    how: {b_how}
+    flaw: {b_critique}
+
+Write the best answer you can, keeping what works in each and fixing the flaws. It may be A, B, or a
+different entity and part from the scene. Names must match the scene exactly. First reason briefly,
+then end with a JSON object with the fields gold_entity, gold_part and how_to_use."""
+
+
+def rank_candidates(utils, task, answers, args):
+    """Gold-free listwise ranking: returns (indices best first, {index: critique})."""
+    order = list(range(len(answers)))
+    random.Random(f"{task['task_id']}{len(answers)}{args.seed}").shuffle(order)  # position bias
+    shown = "\n\n".join(
+        f"[{n + 1}] entity: {answers[k]['gold_entity']}\n    part: {answers[k]['gold_part']}\n"
+        f"    how: {answers[k]['how_to_use']}"
+        for n, k in enumerate(order)
+    )
+    text, _ = chat(
+        args.judge_model,
+        [{"role": "user", "content": RANKER.format(scene=scene_brief(utils, task), candidates=shown)}],
+        0.0,
+    )
+    parsed = utils.parse_json(text) or {}
+    ranked, seen = [], set()
+    for n in parsed.get("ranking", []):
+        try:
+            k = order[int(n) - 1]
+        except (ValueError, IndexError, TypeError):
+            continue
+        if k not in seen:
+            seen.add(k)
+            ranked.append(k)
+    ranked += [k for k in range(len(answers)) if k not in seen]
+    critiques = {}
+    for n, text_ in (parsed.get("critiques") or {}).items():
+        try:
+            critiques[order[int(n) - 1]] = str(text_)
+        except (ValueError, IndexError, TypeError):
+            pass
+    return ranked, critiques
+
+
+def ask(utils, prompt, args):
+    text, spent = chat(
+        args.model, [{"role": "system", "content": utils.SYS_STATIC}, {"role": "user", "content": prompt}], args.temperature
+    )
+    _, parsed = utils.parse_response(text)
+    return answer_of(parsed), spent.get("prompt_tokens", 0) + spent.get("completion_tokens", 0)
+
+
+def arm_evolve(utils, task, args):
+    scene = scene_brief(utils, task)
+    tokens, calls = 0, 0
+    with ThreadPoolExecutor(max_workers=args.variations) as pool:
+        def sample(_):
+            return run_static(utils, task, args, args.temperature)
+
+        population = []
+        for answer, usage in pool.map(sample, range(args.variations)):
+            tokens += usage["input_tokens"] + usage["output_tokens"]
+            calls += 1
+            if answer:
+                population.append(answer)
+        trace = []
+        for _round in range(args.generations):
+            if len(population) < 2:
+                break
+            ranked, crit = rank_candidates(utils, task, population, args)
+            calls += 1
+            trace.append(population[ranked[0]])
+            elites = [population[k] for k in ranked[:2]]
+            jobs = []
+            for k in ranked[:2]:
+                a = population[k]
+                jobs.append(MUTATE.format(scene=scene, entity=a["gold_entity"], part=a["gold_part"],
+                                          how=a["how_to_use"], critique=crit.get(k, "none")))
+            a, b = ranked[0], ranked[1]
+            jobs.append(RECOMBINE.format(
+                scene=scene,
+                a_entity=population[a]["gold_entity"], a_part=population[a]["gold_part"],
+                a_how=population[a]["how_to_use"], a_critique=crit.get(a, "none"),
+                b_entity=population[b]["gold_entity"], b_part=population[b]["gold_part"],
+                b_how=population[b]["how_to_use"], b_critique=crit.get(b, "none")))
+            children = []
+            for answer, spent in pool.map(lambda j: ask(utils, j, args), jobs):
+                tokens += spent
+                calls += 1
+                if answer:
+                    children.append(answer)
+            population = (elites + children)[: args.variations]
+        ranked, _ = rank_candidates(utils, task, population, args) if len(population) > 1 else ([0], {})
+        calls += 1 if len(population) > 1 else 0
+    final = [population[k] for k in ranked]
+    return {"items": [{"value": v} for v in final], "usage": {"input_tokens": tokens, "output_tokens": 0, "calls": calls},
+            "trace": trace}
+
+
 def generate(utils, task, arm, args):
     if arm == "static":
         return arm_static(utils, task, args)
     if arm == "static-k":
         return arm_static_k(utils, task, args)
+    if arm == "evolve":
+        return arm_evolve(utils, task, args)
     return arm_tinybackrooms(utils, task, args, arm)
 
 
