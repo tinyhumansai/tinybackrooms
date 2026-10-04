@@ -33,3 +33,10 @@ fn the_runtime_config_disables_everything_that_reaches_out() {
     assert!(!config.memory_tree.spacy_enabled);
     assert_eq!(config.memory_tree.embedding_endpoint, None);
 }
+
+#[test]
+fn retries_an_empty_response_twice_by_default_and_can_be_changed() {
+    let config = OpenHumanConfig::new("http://localhost/v1", "k", "m");
+    assert_eq!(config.empty_retries, DEFAULT_EMPTY_RETRIES);
+    assert_eq!(config.with_empty_retries(0).empty_retries, 0);
+}

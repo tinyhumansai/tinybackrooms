@@ -12,6 +12,9 @@ use openhuman_embed::RuntimeConfig;
 /// How long one agent turn may run before it is abandoned.
 pub const DEFAULT_TURN_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// How many times a turn is repeated when the provider answers with nothing.
+pub const DEFAULT_EMPTY_RETRIES: u32 = 2;
+
 /// Where the models are and how to reach them.
 #[derive(Clone, PartialEq, Eq)]
 pub struct OpenHumanConfig {
@@ -25,6 +28,10 @@ pub struct OpenHumanConfig {
     /// The per-turn deadline. The engine links no timer, so this is where a
     /// hung turn is cut off.
     pub turn_timeout: Duration,
+    /// Extra attempts when the provider returns an empty response, which
+    /// streaming providers do now and then under load. Each attempt is a fresh
+    /// session, so a retry never sees the failed one.
+    pub empty_retries: u32,
 }
 
 impl OpenHumanConfig {
@@ -40,6 +47,7 @@ impl OpenHumanConfig {
             api_key: api_key.into(),
             model: model.into(),
             turn_timeout: DEFAULT_TURN_TIMEOUT,
+            empty_retries: DEFAULT_EMPTY_RETRIES,
         }
     }
 
@@ -47,6 +55,14 @@ impl OpenHumanConfig {
     #[must_use]
     pub fn with_turn_timeout(mut self, timeout: Duration) -> Self {
         self.turn_timeout = timeout;
+        self
+    }
+
+    /// Retry a turn up to `retries` more times when the provider returns an
+    /// empty response.
+    #[must_use]
+    pub fn with_empty_retries(mut self, retries: u32) -> Self {
+        self.empty_retries = retries;
         self
     }
 }
@@ -58,6 +74,7 @@ impl fmt::Debug for OpenHumanConfig {
             .field("api_key", &"<redacted>")
             .field("model", &self.model)
             .field("turn_timeout", &self.turn_timeout)
+            .field("empty_retries", &self.empty_retries)
             .finish()
     }
 }

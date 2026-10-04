@@ -58,8 +58,9 @@ Non-goals:
     "temperature": 1.0,
     "models": {"agent_a": null, "agent_b": null, "formatter": null, "judge": null},
     "scoring": {
-      "scorers": [{"kind": "originality|elaboration|judge", "weight": 1.0}],
-      "select_top_k": null, "judge_raters": 3, "class_threshold": 0.8
+      "scorers": [{"kind": "originality|elaboration|judge|comparative", "weight": 1.0}],
+      "select_top_k": null, "judge_raters": 3, "class_threshold": 0.8,
+      "criteria": null                  // what a good item is; used by `comparative`
     },
     "budget": {"max_turns": null, "wall_clock_secs": null, "repair_attempts": 2},
     "seed": 0,

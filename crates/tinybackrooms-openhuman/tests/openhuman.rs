@@ -3,12 +3,13 @@
 //! `OpenHuman` allows one `Runtime` per process, so every scenario shares one
 //! conversant and they run in order inside a single test. The fake provider's
 //! behavior is chosen by markers in the last user message: `[[error]]`,
-//! `[[slow]]`, `[[no-tool]]`, and `[[id:N]]`, which it echoes into tool output
-//! so concurrent calls can be told apart.
+//! `[[slow]]`, `[[no-tool]]`, `[[empty-once]]`, `[[empty-always]]`, and
+//! `[[id:N]]`, which it echoes into tool output so concurrent calls can be told
+//! apart.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -25,6 +26,7 @@ use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 struct FakeModel {
     seen: Arc<Mutex<Vec<Value>>>,
     next: Arc<AtomicUsize>,
+    emptied: Arc<AtomicBool>,
 }
 
 fn text_of(row: &Value) -> String {
@@ -69,6 +71,14 @@ impl Respond for FakeModel {
         }
         if last_text.contains("[[error]]") {
             return ResponseTemplate::new(400).set_body_string("model rejected the request");
+        }
+        let empty = last_text.contains("[[empty-always]]")
+            || (last_text.contains("[[empty-once]]") && !self.emptied.swap(true, Ordering::SeqCst));
+        if empty {
+            return ResponseTemplate::new(200).set_body_json(completion(
+                &json!({"role": "assistant", "content": ""}),
+                "stop",
+            ));
         }
         let tool = body["tools"]
             .as_array()
@@ -287,6 +297,25 @@ async fn failure_scenarios(conversant: &Arc<OpenHumanConversant>) {
     assert!(
         matches!(&slow, Error::Conversant(m) if m.contains("timed out")),
         "{slow}"
+    );
+    // A provider that answers with nothing once is retried; one that always
+    // does is reported after the retries run out.
+    let recovered = conversant
+        .turn(turn(vec![Message::user("[[empty-once]]")]))
+        .await
+        .unwrap();
+    assert!(
+        recovered.text.starts_with("turn reply"),
+        "{}",
+        recovered.text
+    );
+    let hopeless = conversant
+        .turn(turn(vec![Message::user("[[empty-always]]")]))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&hopeless, Error::Conversant(m) if m.contains("empty response")),
+        "{hopeless}"
     );
     let empty = conversant.turn(turn(vec![])).await.unwrap_err();
     assert!(

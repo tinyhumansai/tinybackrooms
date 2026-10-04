@@ -50,5 +50,5 @@ mod conversant;
 mod stub;
 mod submit;
 
-pub use config::{DEFAULT_TURN_TIMEOUT, OpenHumanConfig};
+pub use config::{DEFAULT_EMPTY_RETRIES, DEFAULT_TURN_TIMEOUT, OpenHumanConfig};
 pub use conversant::OpenHumanConversant;

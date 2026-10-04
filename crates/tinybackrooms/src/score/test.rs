@@ -4,6 +4,7 @@
 
 use serde_json::json;
 
+use super::comparative::compare_all;
 use super::judge::{Judged, judge_all};
 use super::math::{dat, distinct_classes, nearest_distance, vendi};
 use super::*;
@@ -347,4 +348,154 @@ async fn at_least_one_rater_always_runs() {
     let backend = rater(7, 7, "combinational");
     let judged = judge_all("brief", &candidates(&["x"]), 0, None, &backend).await;
     assert_eq!(judged[0].usage.calls, 1);
+}
+
+/// A reviewer that ranks the candidates containing `favoured` first, whatever
+/// number the shuffle gave them, and records the prompt it saw.
+fn reviewer(
+    favoured: &'static str,
+    seen: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+) -> ScriptedConversant {
+    ScriptedConversant::new(
+        |_| Ok(String::new()),
+        move |request| {
+            let prompt = request.messages[0].content.clone();
+            seen.lock().unwrap().push(prompt.clone());
+            let numbered: Vec<(u64, bool)> = prompt
+                .split("\n\n")
+                .filter_map(|block| {
+                    let n = block.strip_prefix('[')?.split(']').next()?.parse().ok()?;
+                    Some((n, block.contains(favoured)))
+                })
+                .collect();
+            let mut ranking: Vec<u64> = numbered
+                .iter()
+                .filter(|(_, f)| *f)
+                .map(|(n, _)| *n)
+                .collect();
+            ranking.extend(numbered.iter().filter(|(_, f)| !*f).map(|(n, _)| *n));
+            Ok(json!({"assessment": "because", "ranking": ranking}))
+        },
+    )
+}
+
+fn unseen() -> std::sync::Arc<std::sync::Mutex<Vec<String>>> {
+    std::sync::Arc::default()
+}
+
+#[tokio::test]
+async fn the_comparative_scorer_ranks_by_the_reviewers_order_not_by_position() {
+    let backend = reviewer("winner", unseen());
+    let pool = candidates(&["loser a", "winner", "loser b"]);
+    let ranked = rank(
+        pool,
+        &request(vec![spec(ScorerKind::Comparative, 1.0)], None),
+        &[],
+        &LetterEmbedder,
+        &backend,
+    )
+    .await;
+    assert_eq!(ranked.items[0].run_id, "v1");
+    assert!((ranked.items[0].scores["comparative"] - 1.0).abs() < 1e-9);
+    assert!(ranked.items[2].scores["comparative"].abs() < 1e-9);
+    assert_eq!(ranked.usage.calls, 1);
+    assert_eq!(ranked.warnings.len(), 0);
+}
+
+#[tokio::test]
+async fn a_lone_candidate_needs_no_comparison() {
+    let seen = unseen();
+    let backend = reviewer("x", seen.clone());
+    let result = compare_all("brief", None, &candidates(&["x"]), None, 0, &backend).await;
+    assert_eq!(result.scores, [1.0]);
+    assert_eq!(result.usage.calls, 0);
+    assert!(!result.failed);
+    assert_eq!(seen.lock().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn the_criteria_and_the_brief_reach_the_reviewer() {
+    let seen = unseen();
+    let backend = reviewer("a", seen.clone());
+    compare_all(
+        "the brief",
+        Some("it must really work"),
+        &candidates(&["a", "b"]),
+        Some("judge-model"),
+        0,
+        &backend,
+    )
+    .await;
+    let prompt = seen.lock().unwrap()[0].clone();
+    assert!(prompt.contains("the brief"), "{prompt}");
+    assert!(prompt.contains("it must really work"), "{prompt}");
+}
+
+#[tokio::test]
+async fn the_shuffle_is_fixed_by_the_seed() {
+    let order = |seed| async move {
+        let seen = unseen();
+        let backend = reviewer("a", seen.clone());
+        compare_all(
+            "b",
+            None,
+            &candidates(&["a", "b", "c", "d", "e"]),
+            None,
+            seed,
+            &backend,
+        )
+        .await;
+        let prompts = seen.lock().unwrap();
+        prompts[0].clone()
+    };
+    assert_eq!(order(7).await, order(7).await);
+    assert_ne!(order(7).await, order(8).await);
+}
+
+#[tokio::test]
+async fn candidates_the_reviewer_skips_or_repeats_still_get_a_place_at_the_end() {
+    let backend = ScriptedConversant::new(
+        |_| Ok(String::new()),
+        |_| Ok(json!({"assessment": "x", "ranking": [2, 2, 99, 0]})),
+    );
+    let result = compare_all("b", None, &candidates(&["a", "b", "c"]), None, 0, &backend).await;
+    let mut sorted = result.scores.clone();
+    sorted.sort_by(f64::total_cmp);
+    assert_eq!(sorted, [0.0, 0.5, 1.0]);
+    assert!(!result.failed);
+}
+
+#[tokio::test]
+async fn a_failing_reviewer_scores_everything_zero_and_warns() {
+    let ranked = rank(
+        candidates(&["a", "b"]),
+        &request(vec![spec(ScorerKind::Comparative, 1.0)], None),
+        &[],
+        &LetterEmbedder,
+        &idle(),
+    )
+    .await;
+    assert_eq!(ranked.items.len(), 2);
+    assert!(
+        ranked
+            .items
+            .iter()
+            .all(|i| i.scores["comparative"].abs() < f64::EPSILON)
+    );
+    assert!(
+        ranked.warnings[0].contains("comparison failed"),
+        "{:?}",
+        ranked.warnings
+    );
+}
+
+#[tokio::test]
+async fn an_unusable_ranking_counts_as_a_failed_comparison() {
+    let backend = ScriptedConversant::new(
+        |_| Ok(String::new()),
+        |_| Ok(json!({"assessment": "x", "ranking": "first"})),
+    );
+    let result = compare_all("b", None, &candidates(&["a", "b"]), None, 0, &backend).await;
+    assert!(result.failed);
+    assert_eq!(result.scores, [0.0, 0.0]);
 }
