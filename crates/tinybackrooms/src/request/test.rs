@@ -145,8 +145,10 @@ fn wire_form_is_pinned() {
             "variations": 2, "generations": 4, "items_per_variation": 5,
             "mode": "critic_pair", "template": "fugue", "temperature": 0.7,
             "models": {"agent_a": "a", "agent_b": "b", "formatter": "f", "judge": "j"},
-            "scoring": {"scorers": [{"kind": "judge", "weight": 2.0}],
-                "select_top_k": 3, "judge_raters": 5, "class_threshold": 0.9},
+            "scoring": {"scorers": [{"kind": "judge", "weight": 2.0},
+                    {"kind": "comparative", "weight": 1.0}],
+                "select_top_k": 3, "judge_raters": 5, "class_threshold": 0.9,
+                "criteria": "the answer must work in practice"},
             "budget": {"max_turns": 8, "wall_clock_secs": 60, "repair_attempts": 1},
             "seed": 42, "include_transcripts": true
         }
@@ -156,6 +158,11 @@ fn wire_form_is_pinned() {
     assert_eq!(r.config.mode, Mode::CriticPair);
     assert_eq!(r.config.template, Template::Fugue);
     assert_eq!(r.config.scoring.scorers[0].kind, ScorerKind::Judge);
+    assert_eq!(r.config.scoring.scorers[1].kind, ScorerKind::Comparative);
+    assert_eq!(
+        r.config.scoring.criteria.as_deref(),
+        Some("the answer must work in practice")
+    );
     assert_eq!(r.config.budget.max_turns, Some(8));
     assert_eq!(r.config.models.agent_b.as_deref(), Some("b"));
     let round_trip: GenerateRequest =

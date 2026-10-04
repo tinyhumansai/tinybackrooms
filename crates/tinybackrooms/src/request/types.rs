@@ -190,6 +190,10 @@ pub struct ScoringConfig {
     pub judge_raters: u32,
     /// Cosine similarity at or above which two items count as the same idea.
     pub class_threshold: f64,
+    /// What a good item is, in the caller's words. The `comparative` scorer
+    /// holds candidates to it; without it the reviewer judges how well each
+    /// serves the brief.
+    pub criteria: Option<String>,
 }
 
 impl Default for ScoringConfig {
@@ -199,6 +203,7 @@ impl Default for ScoringConfig {
             select_top_k: None,
             judge_raters: 3,
             class_threshold: 0.8,
+            criteria: None,
         }
     }
 }
@@ -219,7 +224,7 @@ fn default_weight() -> f64 {
     1.0
 }
 
-/// The per-item scorers.
+/// The scorers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScorerKind {
@@ -229,6 +234,10 @@ pub enum ScorerKind {
     Elaboration,
     /// Independent raters score novelty and usefulness; the product is the score.
     Judge,
+    /// One reviewer sees every candidate side by side and ranks them; the score
+    /// is the rank. Prefer it when there is a right answer to find, because
+    /// comparing candidates catches flaws that rating each alone misses.
+    Comparative,
 }
 
 /// Limits that stop a run from spending without bound.

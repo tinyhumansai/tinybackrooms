@@ -11,6 +11,10 @@
 //! - **`judge`** is the multi-rater `novelty × usefulness` score described in
 //!   `judge`.
 //!
+//! - **`comparative`** is the rank a single reviewer gives the candidate when it
+//!   sees all of them side by side, held to the request's `criteria`; see
+//!   `comparative`.
+//!
 //! The returned set is also summarized by [`Diversity`]: the `Vendi` score,
 //! distinct classes, and the AUT's fluency and flexibility, plus a DAT-style
 //! mean pairwise distance. The embedding-based measures use the [`Embedder`]
@@ -20,6 +24,7 @@
 //! Scores of different scorers are not rescaled against each other, so weights
 //! are a statement about the raw `[0, 1]` values.
 
+mod comparative;
 mod judge;
 mod math;
 
@@ -135,6 +140,25 @@ pub(crate) async fn rank(
         None
     };
 
+    let compared = if scorers.iter().any(|s| s.kind == ScorerKind::Comparative) {
+        let result = comparative::compare_all(
+            &request.input.brief,
+            config.criteria.as_deref(),
+            &candidates,
+            request.config.models.judge.as_deref(),
+            request.config.seed,
+            backend,
+        )
+        .await;
+        usage.add(result.usage);
+        if result.failed {
+            warnings.push("comparison failed or was unusable; candidates score 0".to_owned());
+        }
+        Some(result.scores)
+    } else {
+        None
+    };
+
     let weight_sum: f64 = scorers.iter().map(|s| s.weight).sum();
     let mut scored: Vec<ScoredItem> = Vec::with_capacity(candidates.len());
     for (index, candidate) in candidates.iter().enumerate() {
@@ -156,6 +180,14 @@ pub(crate) async fn rank(
                     }
                     ("judge", judged.map_or(0.0, |j| j.score))
                 }
+                ScorerKind::Comparative => (
+                    "comparative",
+                    compared
+                        .as_ref()
+                        .and_then(|all| all.get(index))
+                        .copied()
+                        .unwrap_or(0.0),
+                ),
             };
             by_scorer.insert(name.to_owned(), value);
             total += spec.weight * value;
