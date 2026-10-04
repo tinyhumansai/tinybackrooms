@@ -43,7 +43,7 @@ import cb  # noqa: E402  (shared OpenRouter and HTTP transport)
 
 RUNS = HERE / "runs"
 LOCK = threading.Lock()
-ARMS = ("single", "sampled", "brainstorm", "backrooms", "evolve")
+ARMS = ("single", "sampled", "single-k", "sampled-k", "vs", "lens", "lens-k", "stim", "brainstorm", "backrooms", "evolve")
 PATIENCE = 0.8
 
 FIELDS = ("title", "concept", "mechanism", "first_step")
@@ -275,13 +275,124 @@ def arm_evolve(prompt, args, meter):
     return [pop[k] for k in ranked[: args.n]]
 
 
+LENSES = (
+    "a skeptical engineer who only trusts what can be built this month",
+    "an anthropologist who looks at how people already improvise around this problem",
+    "a biologist who borrows solutions evolution already found",
+    "a game designer who turns constraints into the fun part",
+    "an economist who looks for the incentive that makes the problem disappear",
+    "a logistics veteran who cares about the boring supply chain",
+    "an artist who reframes the problem as something else entirely",
+    "a child who asks why the problem exists at all",
+    "a historian who knows which old solutions were forgotten",
+    "a hobbyist who would solve it with parts from a hardware store",
+    "a negotiator who looks at who is stuck and why",
+    "a skeptic who assumes the obvious answer already failed",
+)
+STIMULI = (
+    "tide", "origami", "beehive", "tax form", "lighthouse", "compost", "jazz", "vending machine",
+    "mycelium", "postal service", "chess clock", "glacier", "barter", "kite", "sourdough", "orchestra",
+    "tool library", "fog", "relay race", "bonsai", "customs office", "firefly", "abacus", "tidepool",
+    "weather vane", "recipe", "ant colony", "lost and found", "carnival", "sundial", "scaffolding", "echo",
+)
+LENS_ASK = "\n\nThink as {lens}. Give the idea that person would reach for, not the generic answer."
+STIM_ASK = (
+    "\n\nBefore answering, take the unrelated words \"{word}\" and \"{other}\" and list what each is "
+    "really about (how it works, what it solves). Then build the idea on a genuine structural analogy "
+    "to one of them. The idea must still solve the brief within its constraints; do not mention the words."
+)
+ASK_VS = (
+    "{brief}\n\nGenerate {k} different ideas. Sample them from the full range of what you could say, "
+    "including the unlikely ones, not just the most typical. For each, give the probability (0 to 1) "
+    "that a typical assistant would have given that idea. Reply with JSON: "
+    '{{"ideas": [{{"probability": ..., "title": ..., "concept": ..., "mechanism": ..., "first_step": ...}}]}}.'
+)
+
+
+def select(prompt, pool, args, meter):
+    """The strongest `n` of `pool`, by the same reviewer the evolve arm uses."""
+    if len(pool) <= args.n:
+        return pool
+    ranked, _ = rank_pool(prompt, pool, args, meter, f"{prompt['id']}select{args.seed}")
+    return [pool[k] for k in ranked[: args.n]]
+
+
+def arm_sampled_k(prompt, args, meter):
+    """Control: `pool` independent one-idea calls, ranked. Matches the engine's compute, no conversation."""
+    with ThreadPoolExecutor(max_workers=min(args.pool, 12)) as workers:
+        got = list(workers.map(lambda _: one_idea(prompt, args, meter), range(args.pool)))
+    return select(prompt, [i for i in got if i], args, meter)
+
+
+def arm_single_k(prompt, args, meter):
+    """Control: the same pool from several multi-idea calls, ranked."""
+    calls = max(1, -(-args.pool // args.n))
+    with ThreadPoolExecutor(max_workers=calls) as workers:
+        batches = list(workers.map(lambda _: arm_single(prompt, args, meter), range(calls)))
+    return select(prompt, [i for batch in batches for i in batch], args, meter)
+
+
+def arm_vs(prompt, args, meter):
+    """Verbalized sampling: ask for ideas with probabilities, keep the least typical."""
+    text = meter.chat(
+        args.model,
+        [{"role": "system", "content": SYSTEM},
+         {"role": "user", "content": ASK_VS.format(brief=brief_text(prompt), k=2 * args.n)}],
+        args.temperature,
+    )
+    parsed = jparse(text)
+    raw = parsed.get("ideas", []) if isinstance(parsed, dict) else (parsed or [])
+    scored = []
+    for item in raw:
+        idea = as_idea(item)
+        if idea:
+            try:
+                probability = float(item.get("probability", 1.0))
+            except (TypeError, ValueError):
+                probability = 1.0
+            scored.append((probability, idea))
+    scored.sort(key=lambda pair: pair[0])
+    return [idea for _, idea in scored[: args.n]]
+
+
+def arm_lens(prompt, args, meter):
+    """Independent parallel generation, each call under its own lens; no call sees another."""
+    order = list(LENSES)
+    random.Random(f"{prompt['id']}lens{args.seed}").shuffle(order)
+    asks = [LENS_ASK.format(lens=order[k % len(order)]) for k in range(args.n)]
+    with ThreadPoolExecutor(max_workers=args.n) as workers:
+        got = list(workers.map(lambda ask: one_idea(prompt, args, meter, ask), asks))
+    return [i for i in got if i]
+
+
+def arm_lens_k(prompt, args, meter):
+    """`pool` independent calls, each under a different lens, ranked down to n."""
+    order = list(LENSES)
+    random.Random(f"{prompt['id']}lensk{args.seed}").shuffle(order)
+    asks = [LENS_ASK.format(lens=order[k % len(order)]) for k in range(args.pool)]
+    with ThreadPoolExecutor(max_workers=min(args.pool, 12)) as workers:
+        got = list(workers.map(lambda ask: one_idea(prompt, args, meter, ask), asks))
+    return select(prompt, [i for i in got if i], args, meter)
+
+
+def arm_stim(prompt, args, meter):
+    """Independent calls, each seeded with two random unrelated words to force an analogy."""
+    rng = random.Random(f"{prompt['id']}stim{args.seed}")
+    asks = [STIM_ASK.format(word=w[0], other=w[1]) for w in (rng.sample(STIMULI, 2) for _ in range(args.n))]
+    with ThreadPoolExecutor(max_workers=args.n) as workers:
+        got = list(workers.map(lambda ask: one_idea(prompt, args, meter, ask), asks))
+    return [i for i in got if i]
+
+
+ARM_FUNCS = {
+    "single": arm_single, "sampled": arm_sampled, "single-k": arm_single_k, "sampled-k": arm_sampled_k,
+    "vs": arm_vs, "lens": arm_lens, "lens-k": arm_lens_k, "stim": arm_stim, "evolve": arm_evolve,
+}
+
+
 def generate(prompt, arm, args, meter):
-    if arm == "single":
-        return arm_single(prompt, args, meter)
-    if arm == "sampled":
-        return arm_sampled(prompt, args, meter)
-    if arm == "evolve":
-        return arm_evolve(prompt, args, meter)
+    if arm in ARM_FUNCS:
+        return ARM_FUNCS[arm](prompt, args, meter)
     return arm_engine(prompt, args, meter, arm)
 
 
@@ -433,7 +544,7 @@ def cmd_run(args):
     out.mkdir(parents=True, exist_ok=True)
     (out / "config.json").write_text(json.dumps({k: v for k, v in vars(args).items() if k != "fn"}, indent=2))
     gen_path, res_path = out / "ideas.jsonl", out / "results.jsonl"
-    have = {(r["prompt_id"], r["arm"]) for r in read_rows(gen_path)}
+    have = {(r["prompt_id"], r["arm"]) for r in read_rows(gen_path) if r["ideas"] and not r.get("error")}
     jobs = [(p, a) for p in prompts for a in args.arms if (p["id"], a) not in have]
     print(f"generating {len(jobs)} jobs ({len(have)} done); model {args.model}, judge {args.judge_model}")
 
@@ -465,7 +576,10 @@ def cmd_run(args):
 
 def judge_all(args, prompts, out):
     by_id = {p["id"]: p for p in prompts}
-    gen = read_rows(out / "ideas.jsonl")
+    latest = {}
+    for r in read_rows(out / "ideas.jsonl"):  # a retried job supersedes its failed attempt
+        latest[(r["prompt_id"], r["arm"])] = r
+    gen = list(latest.values())
     res_path = out / "results.jsonl"
     done = {(r["prompt_id"], r["arm"]) for r in read_rows(res_path)}
     refs = {r["prompt_id"]: r["polished"] for r in gen if r["arm"] == "single"}
@@ -552,6 +666,7 @@ def main():
     r.add_argument("--variations", type=int, default=3)
     r.add_argument("--generations", type=int, default=3)
     r.add_argument("--items-per-variation", type=int, default=3)
+    r.add_argument("--pool", type=int, default=12, help="candidates the -k control arms rank down to n")
     r.add_argument("--template", choices=("cli", "fugue", "student"), default="cli")
     r.add_argument("--temperature", type=float, default=1.0)
     r.add_argument("--wall-clock", type=int, default=900)

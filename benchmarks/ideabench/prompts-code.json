@@ -1,0 +1,146 @@
+[
+ {
+  "id": "lean-00",
+  "domain": "lean",
+  "brief": "Propose proof strategies for showing that the sum of the first n odd numbers is n squared in Lean 4, where each strategy teaches a different proof technique.",
+  "must": [
+   "each strategy must be implementable in Mathlib-free core Lean 4",
+   "must name the tactic or term-mode construct it hinges on"
+  ]
+ },
+ {
+  "id": "lean-01",
+  "domain": "lean",
+  "brief": "Propose ways to make Lean 4 proof search cheaper for goals about finite sets of natural numbers, without using an external SMT solver.",
+  "must": [
+   "must be a tactic, a simp set, or a metaprogram",
+   "must say what class of goals it does not help"
+  ]
+ },
+ {
+  "id": "lean-02",
+  "domain": "lean",
+  "brief": "Suggest ways to formalize 'a sorting algorithm is correct' so that stability, permutation and sortedness are all checked, each using a different specification style.",
+  "must": [
+   "must be expressible as Lean 4 definitions",
+   "must be checkable on a real insertion sort"
+  ]
+ },
+ {
+  "id": "lean-03",
+  "domain": "lean",
+  "brief": "Propose approaches to teach a language model to recover from a failed Lean tactic step, using only the error message and goal state.",
+  "must": [
+   "must be trainable or promptable with fewer than 10,000 examples",
+   "must not need a human in the loop at inference time"
+  ]
+ },
+ {
+  "id": "math-04",
+  "domain": "math",
+  "brief": "Propose new ways to approach the claim that every sufficiently large even number is a sum of two primes, framed as experiments one person could run in a week on a laptop.",
+  "must": [
+   "must produce data or a counterexample search, not a proof",
+   "must not repeat plain brute-force verification"
+  ]
+ },
+ {
+  "id": "math-05",
+  "domain": "math",
+  "brief": "Suggest unusual proof strategies for the irrationality of the square root of 2 that do not use parity or infinite descent.",
+  "must": [
+   "each must be a complete outline in under 5 steps",
+   "each must name the key lemma"
+  ]
+ },
+ {
+  "id": "math-06",
+  "domain": "math",
+  "brief": "Invent a puzzle that teaches the pigeonhole principle to people who have never seen a proof, with a surprising answer.",
+  "must": [
+   "must be solvable on paper in 15 minutes",
+   "must not mention pigeons or boxes"
+  ]
+ },
+ {
+  "id": "math-07",
+  "domain": "math",
+  "brief": "Propose ways to use graph theory to schedule a school timetable that make a hidden constraint visible instead of just solving it.",
+  "must": [
+   "must name the graph and what its vertices and edges are",
+   "must give one measurable structural property to look at"
+  ]
+ },
+ {
+  "id": "code-08",
+  "domain": "code",
+  "brief": "Invent a data structure for a text editor's undo history that supports branching undo and cheap memory use.",
+  "must": [
+   "must give the operations and their complexity",
+   "must differ from a plain stack or a plain tree of snapshots"
+  ]
+ },
+ {
+  "id": "code-09",
+  "domain": "code",
+  "brief": "Propose ways to find flaky tests automatically in a large monorepo without rerunning the suite many times.",
+  "must": [
+   "must use only information a CI system already has",
+   "must say how it avoids false accusations"
+  ]
+ },
+ {
+  "id": "code-10",
+  "domain": "code",
+  "brief": "Suggest approaches to make a command-line tool's error messages teach the user instead of just reporting failure.",
+  "must": [
+   "must be implementable in a library of fewer than 500 lines",
+   "must not use a language model at runtime"
+  ]
+ },
+ {
+  "id": "code-11",
+  "domain": "code",
+  "brief": "Propose algorithms for deduplicating near-identical log lines in a stream with bounded memory, each trading accuracy for something different.",
+  "must": [
+   "must state the memory bound",
+   "must handle lines with variable numbers and ids"
+  ]
+ },
+ {
+  "id": "code-12",
+  "domain": "code",
+  "brief": "Invent a way to make a hard-to-test concurrent program reproducible when it fails in production.",
+  "must": [
+   "must work on a real language runtime",
+   "must not require recording every instruction"
+  ]
+ },
+ {
+  "id": "code-13",
+  "domain": "code",
+  "brief": "Suggest new ways to review a pull request that catch what line-by-line reading misses.",
+  "must": [
+   "must be done by a person in under 20 minutes",
+   "must not be a checklist"
+  ]
+ },
+ {
+  "id": "code-14",
+  "domain": "code",
+  "brief": "Propose ways to represent a spreadsheet's formulas so that a bug in a far-away cell is easy to see.",
+  "must": [
+   "must be a visual or structural representation, not an error list",
+   "must work for sheets with thousands of cells"
+  ]
+ },
+ {
+  "id": "aut-15",
+  "domain": "aut",
+  "brief": "List unusual uses for a proof assistant that have nothing to do with proving theorems.",
+  "must": [
+   "each must be something a real user could try this month",
+   "must not be about documentation or teaching"
+  ]
+ }
+]
