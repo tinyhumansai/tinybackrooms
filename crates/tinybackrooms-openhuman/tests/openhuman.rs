@@ -304,7 +304,11 @@ async fn failure_scenarios(conversant: &Arc<OpenHumanConversant>) {
         .turn(turn(vec![Message::user("[[empty-once]]")]))
         .await
         .unwrap();
-    assert!(recovered.text.starts_with("turn reply"), "{}", recovered.text);
+    assert!(
+        recovered.text.starts_with("turn reply"),
+        "{}",
+        recovered.text
+    );
     let hopeless = conversant
         .turn(turn(vec![Message::user("[[empty-always]]")]))
         .await

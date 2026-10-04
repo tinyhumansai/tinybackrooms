@@ -23,6 +23,8 @@ fn only_an_empty_response_is_worth_retrying() {
     let empty = failure("turn failed", "The model returned an empty response");
     assert!(is_empty_response(&empty));
     assert!(!is_empty_response(&failure("turn failed", "HTTP 400")));
-    assert!(!is_empty_response(&Error::Conversant("turn timed out: 4s".into())));
+    assert!(!is_empty_response(&Error::Conversant(
+        "turn timed out: 4s".into()
+    )));
     assert!(!is_empty_response(&Error::Memory("empty response".into())));
 }

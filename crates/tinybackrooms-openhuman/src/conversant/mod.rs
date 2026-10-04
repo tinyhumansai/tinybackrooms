@@ -188,14 +188,9 @@ impl Conversant for OpenHumanConversant {
             let mut attempt = 0;
             let (text, usage) = loop {
                 let session = self.next_session();
-                let outcome = Box::pin(self.run(
-                    &agent,
-                    &session,
-                    &request.system,
-                    &request.messages,
-                    model,
-                ))
-                .await;
+                let outcome =
+                    Box::pin(self.run(&agent, &session, &request.system, &request.messages, model))
+                        .await;
                 match outcome {
                     Err(error) if attempt < self.empty_retries && is_empty_response(&error) => {
                         attempt += 1;
@@ -226,14 +221,9 @@ impl Conversant for OpenHumanConversant {
             let (usage, slot) = loop {
                 let session = self.next_session();
                 let slot = self.slots.open(&session);
-                let outcome = Box::pin(self.run(
-                    &agent,
-                    &session,
-                    &request.system,
-                    &request.messages,
-                    model,
-                ))
-                .await;
+                let outcome =
+                    Box::pin(self.run(&agent, &session, &request.system, &request.messages, model))
+                        .await;
                 self.slots.close(&session);
                 match outcome {
                     Err(error) if attempt < self.empty_retries && is_empty_response(&error) => {
