@@ -49,6 +49,13 @@ OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
 ARMS = ("static", "static-k", "brainstorm", "backrooms", "evolve")
 LOCK = threading.Lock()
 
+CRITERIA = (
+    "The entity and part must really exist in the scene, with names matching exactly. The part's "
+    "described material, shape, size and state must really enable the action. Every condition in the "
+    "task must be met using only what the scene provides. The steps must be physically feasible and "
+    "safe. Prefer the most natural fit over a stretch."
+)
+
 ANSWER_SCHEMA = {
     "type": "object",
     "required": ["gold_entity", "gold_part", "how_to_use"],
@@ -231,10 +238,12 @@ def arm_tinybackrooms(utils, task, args, mode):
             "temperature": args.temperature,
             "seed": args.seed,
             "scoring": {
-                "scorers": [{"kind": "judge", "weight": 1.0}],
+                "scorers": [{"kind": args.scorer, "weight": 1.0}],
                 "select_top_k": args.variations,
                 "judge_raters": args.judge_raters,
+                "criteria": CRITERIA,
             },
+            "models": {"judge": args.judge_model if args.scorer == "comparative" else None},
             "budget": {"wall_clock_secs": args.wall_clock},
         },
     }
@@ -688,6 +697,8 @@ def main():
     r.add_argument("--variations", type=int, default=3)
     r.add_argument("--generations", type=int, default=4)
     r.add_argument("--judge-raters", type=int, default=1)
+    r.add_argument("--scorer", choices=("judge", "comparative"), default="judge",
+                   help="how the engine ranks its K answers")
     r.add_argument("--template", choices=("cli", "fugue", "student"), default="cli")
     r.add_argument("--temperature", type=float, default=1.0)
     r.add_argument("--wall-clock", type=int, default=600)
