@@ -1,0 +1,27 @@
+{
+  "cmd": "run",
+  "prompts": "/home/enamakel/work/libraries/tinybackrooms/worktrees/creativitybench/benchmarks/ideabench/prompts.json",
+  "tag": "smoke",
+  "workers": 5,
+  "judge_workers": 4,
+  "judge_model": "google/gemini-3.8-flash",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "arms": [
+    "single",
+    "sampled",
+    "brainstorm",
+    "backrooms",
+    "evolve"
+  ],
+  "limit": 2,
+  "n": 3,
+  "variations": 2,
+  "generations": 2,
+  "items_per_variation": 2,
+  "template": "cli",
+  "temperature": 1.0,
+  "wall_clock": 900,
+  "seed": 0,
+  "api": "http://127.0.0.1:8082",
+  "skip_judge": false
+}
