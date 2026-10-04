@@ -451,6 +451,76 @@ def print_report(rows):
         print(f"  top1 gold @ {level:<9} {line}")
 
 
+SELECTOR = """You are choosing the best answer to a creative tool-repurposing task.
+
+{scene}
+
+Candidate answers:
+{candidates}
+
+Pick the single candidate most likely to actually work. Check each one:
+- the entity and part really exist in the scene (names match exactly);
+- the part's described material, shape, size and state really enable the action;
+- every condition in the task is satisfied, and nothing outside the scene is needed;
+- the steps are physically feasible and safe, and the part is the most natural fit.
+Reject candidates that rely on properties the description does not give.
+
+Reply with JSON only: {{"best": <candidate number>, "reason": "<one sentence>"}}"""
+
+
+def cmd_reselect(args):
+    """Re-pick the best of each task's K candidates with a gold-free listwise judge."""
+    utils, judge = load_cb(args.judge_model)
+    tasks = {t["task_id"]: t for t in json.loads(Path(args.tasks).read_text())}
+    rows = [r for r in read_rows(RUNS / args.tag / "results.jsonl") if r["arm"] in args.arms]
+    rows = [r for r in rows if len([i for i in r["items"] if "verdict" in i]) >= 2]
+    out = RUNS / args.tag / "reselect.jsonl"
+    done = {(r["task_id"], r["arm"]) for r in read_rows(out)}
+
+    def work(row):
+        items = [i for i in row["items"] if "verdict" in i]
+        order = list(range(len(items)))
+        random.Random(row["task_id"]).shuffle(order)  # break position bias
+        shown = "\n\n".join(
+            f"[{n + 1}] entity: {items[k]['value']['gold_entity']}\n"
+            f"    part: {items[k]['value']['gold_part']}\n"
+            f"    how: {items[k]['value']['how_to_use']}"
+            for n, k in enumerate(order)
+        )
+        prompt = SELECTOR.format(scene=scene_brief(utils, tasks[row["task_id"]]), candidates=shown)
+        text, _ = chat(args.judge_model, [{"role": "user", "content": prompt}], 0.0)
+        parsed = utils.parse_json(text) or {}
+        try:
+            pick = order[int(parsed["best"]) - 1]
+        except (KeyError, ValueError, IndexError, TypeError):
+            pick = 0
+        res = {"task_id": row["task_id"], "arm": row["arm"], "difficulty": row["difficulty"],
+               "picked": items[pick]["verdict"], "first": items[0]["verdict"],
+               "all": [i["verdict"] for i in items]}
+        append(out, res)
+
+    todo = [r for r in rows if (r["task_id"], r["arm"]) not in done]
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        list(pool.map(work, todo))
+    print_reselect(read_rows(out))
+
+
+def print_reselect(rows):
+    print(f"\n{'arm':<11}{'tasks':>6}{'engine top1':>13}{'selector':>10}{'mean (random)':>15}{'any@K':>8}")
+    for arm in ARMS:
+        mine = [r for r in rows if r["arm"] == arm]
+        if not mine:
+            continue
+        n = len(mine)
+        print(
+            f"{arm:<11}{n:>6}"
+            f"{sum(r['first']['gold'] for r in mine) / n:>13.1%}"
+            f"{sum(r['picked']['gold'] for r in mine) / n:>10.1%}"
+            f"{sum(mean(v['gold'] for v in r['all']) for r in mine) / n:>15.1%}"
+            f"{sum(any(v['gold'] for v in r['all']) for r in mine) / n:>8.1%}"
+        )
+
+
 def cmd_report(args):
     print_report(read_rows(RUNS / args.tag / "results.jsonl"))
 
@@ -484,6 +554,14 @@ def main():
     r.add_argument("--wall-clock", type=int, default=600)
     r.add_argument("--seed", type=int, default=0)
     r.set_defaults(fn=cmd_run)
+
+    x = sub.add_parser("reselect")
+    x.add_argument("--tasks", required=True)
+    x.add_argument("--tag", required=True)
+    x.add_argument("--arms", nargs="+", choices=ARMS, default=["static-k", "brainstorm", "backrooms"])
+    x.add_argument("--workers", type=int, default=6)
+    x.add_argument("--judge-model", default="google/gemini-3.8-flash")
+    x.set_defaults(fn=cmd_reselect)
 
     q = sub.add_parser("report")
     q.add_argument("--tag", required=True)
