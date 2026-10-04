@@ -1,0 +1,271 @@
+[
+ {
+  "id": "product-00",
+  "domain": "product",
+  "brief": "Invent a product that helps people who live alone feel less isolated, without being a social network or a chatbot.",
+  "must": [
+   "must be physical or have a physical component",
+   "must work without the user opening an app daily"
+  ]
+ },
+ {
+  "id": "product-01",
+  "domain": "product",
+  "brief": "Design a new kind of kitchen appliance that does something no current appliance does.",
+  "must": [
+   "must be buildable with today's technology",
+   "must fit on a standard counter"
+  ]
+ },
+ {
+  "id": "product-02",
+  "domain": "product",
+  "brief": "Come up with a way to make a ten-minute commute genuinely enjoyable on a crowded train.",
+  "must": [
+   "no headphones",
+   "must not require the other passengers to cooperate"
+  ]
+ },
+ {
+  "id": "product-03",
+  "domain": "product",
+  "brief": "Propose a children's toy that teaches probabilistic thinking.",
+  "must": [
+   "ages 6 to 9",
+   "no screens"
+  ]
+ },
+ {
+  "id": "science-04",
+  "domain": "science",
+  "brief": "Propose a testable hypothesis about why some cities have far fewer pigeons than others of similar size and climate.",
+  "must": [
+   "must be testable with publicly available data or a cheap field study"
+  ]
+ },
+ {
+  "id": "science-05",
+  "domain": "science",
+  "brief": "Suggest an unexpected way to use bacteria to help clean up a coastal oil spill.",
+  "must": [
+   "must be safe for the ecosystem",
+   "must be cheaper than skimming boats"
+  ]
+ },
+ {
+  "id": "science-06",
+  "domain": "science",
+  "brief": "Propose a new experiment to find out whether plants can distinguish between sounds of rain and wind.",
+  "must": [
+   "must be doable in a high-school lab",
+   "must have a clear control condition"
+  ]
+ },
+ {
+  "id": "science-07",
+  "domain": "science",
+  "brief": "Suggest a surprising explanation for why people yawn contagiously, and a way to test it.",
+  "must": [
+   "must differ from the standard empathy and brain-cooling accounts"
+  ]
+ },
+ {
+  "id": "game-08",
+  "domain": "game",
+  "brief": "Design a core mechanic for a cooperative board game where players cannot talk about their hands.",
+  "must": [
+   "2 to 4 players",
+   "playable in 40 minutes"
+  ]
+ },
+ {
+  "id": "game-09",
+  "domain": "game",
+  "brief": "Invent a new video game genre that is not a blend of two existing genres.",
+  "must": [
+   "must be explainable in two sentences",
+   "must be implementable by a team of three"
+  ]
+ },
+ {
+  "id": "game-10",
+  "domain": "game",
+  "brief": "Design a puzzle that can only be solved by noticing something the player is likely to ignore.",
+  "must": [
+   "must be fair: the clue must be visible"
+  ]
+ },
+ {
+  "id": "civic-11",
+  "domain": "civic",
+  "brief": "Propose a low-cost way to get more people to vote in local elections.",
+  "must": [
+   "no new legislation",
+   "under $5 per additional voter"
+  ]
+ },
+ {
+  "id": "civic-12",
+  "domain": "civic",
+  "brief": "Invent a way to make public libraries useful to people who never visit them.",
+  "must": [
+   "must not rely on lending books"
+  ]
+ },
+ {
+  "id": "civic-13",
+  "domain": "civic",
+  "brief": "Suggest a method to reduce food waste in school cafeterias that students would actually like.",
+  "must": [
+   "must not rely on lectures or posters",
+   "cost-neutral for the school"
+  ]
+ },
+ {
+  "id": "education-14",
+  "domain": "education",
+  "brief": "Design a way to teach compound interest to teenagers that sticks for years.",
+  "must": [
+   "must involve doing something, not listening",
+   "no more than one class period"
+  ]
+ },
+ {
+  "id": "education-15",
+  "domain": "education",
+  "brief": "Propose an unusual way to teach a second language to adults who have failed before.",
+  "must": [
+   "must not be flashcards or an app with streaks"
+  ]
+ },
+ {
+  "id": "climate-16",
+  "domain": "climate",
+  "brief": "Propose a way for a small apartment building to cut its heating energy by a quarter without construction work.",
+  "must": [
+   "must cost under $2,000 for the whole building",
+   "tenants must not need to change daily habits"
+  ]
+ },
+ {
+  "id": "climate-17",
+  "domain": "climate",
+  "brief": "Invent a use for the heat wasted by a data center that benefits its neighbours.",
+  "must": [
+   "must be physically plausible within 500 metres"
+  ]
+ },
+ {
+  "id": "health-18",
+  "domain": "health",
+  "brief": "Suggest a way to help older adults keep up balance exercises they tend to abandon.",
+  "must": [
+   "must not rely on reminders or apps",
+   "must be safe unsupervised"
+  ]
+ },
+ {
+  "id": "health-19",
+  "domain": "health",
+  "brief": "Invent a way to make taking a daily medication feel less like a chore.",
+  "must": [
+   "must not change the medication itself",
+   "no gamification points"
+  ]
+ },
+ {
+  "id": "logistics-20",
+  "domain": "logistics",
+  "brief": "Propose a creative way to deliver packages in a dense city that is neither a drone nor a van.",
+  "must": [
+   "must work in rain",
+   "must be economically plausible"
+  ]
+ },
+ {
+  "id": "logistics-21",
+  "domain": "logistics",
+  "brief": "Invent a way to reuse the empty space in cargo ships returning from long trips.",
+  "must": [
+   "must be legal under existing maritime rules"
+  ]
+ },
+ {
+  "id": "art-22",
+  "domain": "art",
+  "brief": "Invent a new form of public art that changes depending on who is looking at it.",
+  "must": [
+   "no personal data collected",
+   "must survive outdoors for a year"
+  ]
+ },
+ {
+  "id": "art-23",
+  "domain": "art",
+  "brief": "Propose a musical instrument that a person with no training can play expressively within five minutes.",
+  "must": [
+   "must be acoustic or electro-acoustic, not a touchscreen"
+  ]
+ },
+ {
+  "id": "software-24",
+  "domain": "software",
+  "brief": "Suggest a novel way to make code review less tedious and more educational for junior developers.",
+  "must": [
+   "must not just be AI auto-review",
+   "must fit a normal team workflow"
+  ]
+ },
+ {
+  "id": "software-25",
+  "domain": "software",
+  "brief": "Invent a feature for a to-do app that no to-do app has, which would change how people actually plan.",
+  "must": [
+   "must be explainable in one sentence"
+  ]
+ },
+ {
+  "id": "aut-26",
+  "domain": "aut",
+  "brief": "List unusual but genuinely useful ways to use an ordinary brick, as a set of ideas.",
+  "must": [
+   "no building a wall",
+   "no paperweight or doorstop"
+  ]
+ },
+ {
+  "id": "aut-27",
+  "domain": "aut",
+  "brief": "List unusual but genuinely useful ways to use a paperclip, as a set of ideas.",
+  "must": [
+   "no holding paper together",
+   "no lock-picking"
+  ]
+ },
+ {
+  "id": "aut-28",
+  "domain": "aut",
+  "brief": "List unusual but genuinely useful ways to use an umbrella that have nothing to do with rain or sun.",
+  "must": [
+   "must be practical, not a gag"
+  ]
+ },
+ {
+  "id": "nb-29",
+  "domain": "nb",
+  "brief": "I am working on a game where players act as a human child who falls into a magical underground world full of monsters. Suggest one interesting character the child could meet.",
+  "must": []
+ },
+ {
+  "id": "nb-30",
+  "domain": "nb",
+  "brief": "What would you invent to make the world a more interesting place to live in?",
+  "must": []
+ },
+ {
+  "id": "nb-31",
+  "domain": "nb",
+  "brief": "What is the coolest unsolved problem to you, and what is one fresh angle of attack on it?",
+  "must": []
+ }
+]
