@@ -118,7 +118,8 @@ pub(super) async fn compare_all(
             order.push(index);
         }
     }
-    order.extend((0..n).filter(|index| !order.contains(index)));
+    let unranked: Vec<usize> = (0..n).filter(|index| !order.contains(index)).collect();
+    order.extend(unranked);
 
     let mut scores = vec![0.0; n];
     for (place, index) in order.into_iter().enumerate() {

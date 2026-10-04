@@ -352,7 +352,10 @@ async fn at_least_one_rater_always_runs() {
 
 /// A reviewer that ranks the candidates containing `favoured` first, whatever
 /// number the shuffle gave them, and records the prompt it saw.
-fn reviewer(favoured: &'static str, seen: std::sync::Arc<std::sync::Mutex<Vec<String>>>) -> ScriptedConversant {
+fn reviewer(
+    favoured: &'static str,
+    seen: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+) -> ScriptedConversant {
     ScriptedConversant::new(
         |_| Ok(String::new()),
         move |request| {
@@ -365,7 +368,11 @@ fn reviewer(favoured: &'static str, seen: std::sync::Arc<std::sync::Mutex<Vec<St
                     Some((n, block.contains(favoured)))
                 })
                 .collect();
-            let mut ranking: Vec<u64> = numbered.iter().filter(|(_, f)| *f).map(|(n, _)| *n).collect();
+            let mut ranking: Vec<u64> = numbered
+                .iter()
+                .filter(|(_, f)| *f)
+                .map(|(n, _)| *n)
+                .collect();
             ranking.extend(numbered.iter().filter(|(_, f)| !*f).map(|(n, _)| *n));
             Ok(json!({"assessment": "because", "ranking": ranking}))
         },
@@ -429,7 +436,15 @@ async fn the_shuffle_is_fixed_by_the_seed() {
     let order = |seed| async move {
         let seen = unseen();
         let backend = reviewer("a", seen.clone());
-        compare_all("b", None, &candidates(&["a", "b", "c", "d", "e"]), None, seed, &backend).await;
+        compare_all(
+            "b",
+            None,
+            &candidates(&["a", "b", "c", "d", "e"]),
+            None,
+            seed,
+            &backend,
+        )
+        .await;
         let prompt = seen.lock().unwrap()[0].clone();
         prompt
     };
@@ -461,8 +476,17 @@ async fn a_failing_reviewer_scores_everything_zero_and_warns() {
     )
     .await;
     assert_eq!(ranked.items.len(), 2);
-    assert!(ranked.items.iter().all(|i| i.scores["comparative"].abs() < f64::EPSILON));
-    assert!(ranked.warnings[0].contains("comparison failed"), "{:?}", ranked.warnings);
+    assert!(
+        ranked
+            .items
+            .iter()
+            .all(|i| i.scores["comparative"].abs() < f64::EPSILON)
+    );
+    assert!(
+        ranked.warnings[0].contains("comparison failed"),
+        "{:?}",
+        ranked.warnings
+    );
 }
 
 #[tokio::test]
