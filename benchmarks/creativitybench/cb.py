@@ -340,7 +340,8 @@ def cmd_run(args):
     tasks = json.loads(Path(args.tasks).read_text())[: args.limit or None]
     out = RUNS / args.tag
     out.mkdir(parents=True, exist_ok=True)
-    (out / "config.json").write_text(json.dumps(vars(args), indent=2))
+    config = {k: v for k, v in vars(args).items() if k != "fn"}
+    (out / "config.json").write_text(json.dumps(config, indent=2))
     path = out / "results.jsonl"
     done = {(r["task_id"], r["arm"]) for r in read_rows(path)}
     jobs = [(t, a) for t in tasks for a in args.arms if (t["task_id"], a) not in done]
