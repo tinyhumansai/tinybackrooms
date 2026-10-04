@@ -44,6 +44,20 @@ weighted mean over the configured scorers.
   standard deviation across raters) is reported, unweighted. Out-of-range
   ratings and failed calls are dropped with a warning; an item with no usable
   rating scores 0.
+- **`comparative`**: one reviewer call sees every candidate in the pool side by
+  side, in a shuffle fixed by `config.seed`, and ranks them against
+  `scoring.criteria` (default: how well each serves the brief). It writes a
+  short assessment first, then the ranking. A candidate's score is
+  `1 − place/(n−1)`: best 1, worst 0; a candidate the reviewer omits is placed
+  after those it ranked. A pool of fewer than two costs no call and scores 1; a
+  failed or unusable call scores everything 0 with a warning. Use it when the
+  task has a right answer to find. The reviewer is `models.judge`.
+
+  *Why it exists.* On CreativityBench (a closed-form creative problem-solving
+  benchmark with gold answers) the per-item `judge` ranked the correct
+  candidate first about half the time it was present; this scorer ranked it
+  first every time on the 12-task pilot. Rating a candidate alone lets a
+  plausible flaw through; seeing the alternatives exposes it.
 
 The returned set also gets `Diversity`: `vendi`, `distinct_classes` (greedy
 leader clustering at `class_threshold`), `fluency` (count), `flexibility`
@@ -55,7 +69,7 @@ ranked items because the eigendecomposition is cubic.
 1. Scorers are not rescaled against each other; weights apply to raw values.
 2. The default embedder hashes character trigrams, so "semantic" distance is
    surface overlap. A learned embedder goes behind the `Embedder` port.
-3. A judge failure never fails a run.
+3. A judge or comparison failure never fails a run.
 4. Ranking uses a stable sort, so ties keep variation order.
 
 ## Acceptance criteria
