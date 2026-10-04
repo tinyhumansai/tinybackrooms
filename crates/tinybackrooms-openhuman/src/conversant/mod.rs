@@ -9,6 +9,9 @@
 //! - **`structured`** gives the agent one host tool whose parameters are the
 //!   requested JSON Schema and returns the arguments it called it with.
 //!
+//! A provider that answers with nothing is asked again, up to
+//! `OpenHumanConfig::empty_retries` times, on a fresh session.
+//!
 //! Timeouts are enforced here, per turn, because the engine links no timer. A
 //! timed-out turn is dropped, which is the only cancellation the embed facade
 //! offers.
@@ -40,6 +43,7 @@ pub struct OpenHumanConversant {
     sessions: AtomicU64,
     default_model: String,
     timeout: Duration,
+    empty_retries: u32,
     backend: JoinHandle<()>,
 }
 
@@ -54,6 +58,12 @@ impl Drop for OpenHumanConversant {
     fn drop(&mut self) {
         self.backend.abort();
     }
+}
+
+/// Whether `error` is the provider answering with nothing, which is worth
+/// asking again rather than failing the whole variation.
+fn is_empty_response(error: &Error) -> bool {
+    matches!(error, Error::Conversant(message) if message.contains("empty response"))
 }
 
 fn failure(context: &str, error: impl std::fmt::Display) -> Error {
@@ -97,6 +107,7 @@ impl OpenHumanConversant {
             sessions: AtomicU64::new(0),
             default_model: config.model,
             timeout: config.turn_timeout,
+            empty_retries: config.empty_retries,
             backend,
         })
     }
@@ -174,10 +185,24 @@ impl Conversant for OpenHumanConversant {
             let temperature = temperature_key(request.temperature);
             let id = agent_id(&request.seat.role, &[&request.system, model, &temperature]);
             let agent = self.agent(&id, || chat_spec(&id, &request.system, request.temperature))?;
-            let session = self.next_session();
-            let (text, usage) =
-                Box::pin(self.run(&agent, &session, &request.system, &request.messages, model))
-                    .await?;
+            let mut attempt = 0;
+            let (text, usage) = loop {
+                let session = self.next_session();
+                let outcome = Box::pin(self.run(
+                    &agent,
+                    &session,
+                    &request.system,
+                    &request.messages,
+                    model,
+                ))
+                .await;
+                match outcome {
+                    Err(error) if attempt < self.empty_retries && is_empty_response(&error) => {
+                        attempt += 1;
+                    }
+                    other => break other?,
+                }
+            };
             Ok(TurnReply { text, usage })
         })
     }
@@ -197,13 +222,26 @@ impl Conversant for OpenHumanConversant {
             let agent = self.agent(&id, || {
                 structured_spec(&id, &request.system, &def, Arc::clone(&self.slots))
             })?;
-            let session = self.next_session();
-            let slot = self.slots.open(&session);
-            let outcome =
-                Box::pin(self.run(&agent, &session, &request.system, &request.messages, model))
-                    .await;
-            self.slots.close(&session);
-            let (_, usage) = outcome?;
+            let mut attempt = 0;
+            let (usage, slot) = loop {
+                let session = self.next_session();
+                let slot = self.slots.open(&session);
+                let outcome = Box::pin(self.run(
+                    &agent,
+                    &session,
+                    &request.system,
+                    &request.messages,
+                    model,
+                ))
+                .await;
+                self.slots.close(&session);
+                match outcome {
+                    Err(error) if attempt < self.empty_retries && is_empty_response(&error) => {
+                        attempt += 1;
+                    }
+                    other => break (other?.1, slot),
+                }
+            };
             let value = slot
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
