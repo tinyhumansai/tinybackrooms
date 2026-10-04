@@ -23,7 +23,7 @@ use crate::{Conversant, Message, Seat, StructuredRequest, Usage};
 const TOOL: &str = "rank_items";
 
 /// Distinguishes the shuffle from the other uses of the request seed.
-const SHUFFLE_STREAM: u64 = 0x5c0_7e;
+const SHUFFLE_STREAM: u64 = 0x0005_C07E;
 
 const SYSTEM: &str = "You are a strict reviewer comparing candidate answers to the same problem. \
 Check each candidate against the problem and the criteria: does it really work, does it rely on \

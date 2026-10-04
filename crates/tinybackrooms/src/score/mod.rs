@@ -141,20 +141,7 @@ pub(crate) async fn rank(
     };
 
     let compared = if scorers.iter().any(|s| s.kind == ScorerKind::Comparative) {
-        let result = comparative::compare_all(
-            &request.input.brief,
-            config.criteria.as_deref(),
-            &candidates,
-            request.config.models.judge.as_deref(),
-            request.config.seed,
-            backend,
-        )
-        .await;
-        usage.add(result.usage);
-        if result.failed {
-            warnings.push("comparison failed or was unusable; candidates score 0".to_owned());
-        }
-        Some(result.scores)
+        Some(compare(&candidates, request, backend, &mut usage, &mut warnings).await)
     } else {
         None
     };
@@ -217,6 +204,31 @@ pub(crate) async fn rank(
         usage,
         warnings,
     }
+}
+
+/// One reviewer call over the whole pool; its cost and any failure are
+/// recorded in `usage` and `warnings`.
+async fn compare(
+    candidates: &[Candidate],
+    request: &GenerateRequest,
+    backend: &dyn Conversant,
+    usage: &mut Usage,
+    warnings: &mut Vec<String>,
+) -> Vec<f64> {
+    let result = comparative::compare_all(
+        &request.input.brief,
+        request.config.scoring.criteria.as_deref(),
+        candidates,
+        request.config.models.judge.as_deref(),
+        request.config.seed,
+        backend,
+    )
+    .await;
+    usage.add(result.usage);
+    if result.failed {
+        warnings.push("comparison failed or was unusable; candidates score 0".to_owned());
+    }
+    result.scores
 }
 
 fn diversity(vectors: &[Vec<f32>], threshold: f64) -> Diversity {
