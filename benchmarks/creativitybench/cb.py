@@ -275,8 +275,11 @@ def judge_items(judge, task, items):
             item["judge_error"] = str(err)[:300]
             continue
         llm = verdict.get("llm_judge", {})
+        gold = task["golds"][0]
         item["verdict"] = {
             "gold": bool(verdict["entity_correct"] and verdict["part_correct"]),
+            "exact": value.get("gold_entity") == gold["gold_entity"]
+            and value.get("gold_part") == gold["gold_part"],
             "entity_correct": bool(verdict["entity_correct"]),
             "relation": verdict["prediction_relation"],
             "correctness": llm.get("prediction_correctness", 0),
@@ -399,6 +402,7 @@ def summarize(rows):
         table[arm] = {
             "tasks": len(mine),
             "errors": sum(1 for r in mine if r.get("error")),
+            "top1_exact": mean(v["exact"] for v in top),
             "top1_gold": mean(v["gold"] for v in top),
             "any_gold": mean(any(v["gold"] for v in j) for j in have),
             "mean_gold": mean(mean(v["gold"] for v in j) for j in have),
@@ -418,6 +422,7 @@ def summarize(rows):
 COLUMNS = [
     ("tasks", "tasks", "{:>5}"),
     ("errors", "err", "{:>4}"),
+    ("top1_exact", "top1 exact", "{:>10.1%}"),
     ("top1_gold", "top1 gold", "{:>9.1%}"),
     ("any_gold", "any@K gold", "{:>10.1%}"),
     ("mean_gold", "mean gold", "{:>9.1%}"),
