@@ -90,7 +90,7 @@ def http_json(url, body, headers, timeout, retries=4):
     raise RuntimeError(f"giving up on {url}: {last}")
 
 
-def chat(model, messages, temperature, max_tokens=4096):
+def chat(model, messages, temperature, max_tokens=16384):
     """One OpenRouter chat completion; returns (text, usage)."""
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
@@ -127,7 +127,7 @@ def load_cb(judge_model):
     import utils
 
     def call_judge(prompt):
-        text, _ = chat(judge_model, [{"role": "user", "content": prompt}], 0.0, 4096)
+        text, _ = chat(judge_model, [{"role": "user", "content": prompt}], 0.0)
         parsed = utils.parse_json(text)
         return parsed if isinstance(parsed, dict) else {}
 
@@ -391,24 +391,29 @@ def accepted(v):
 
 
 def summarize(rows):
+    """Per-arm rates over *all* tasks: a task with no usable answer counts as a miss."""
     table = {}
     for arm in ARMS:
         mine = [r for r in rows if r["arm"] == arm]
         if not mine:
             continue
         judged = [[i["verdict"] for i in r["items"] if "verdict" in i] for r in mine]
-        have = [j for j in judged if j]
-        top = [j[0] for j in have]
+        answered = [j for j in judged if j]
+        tasks = len(mine)
+
+        def share(per_task):
+            return sum(per_task(j) for j in answered) / tasks
+
         table[arm] = {
-            "tasks": len(mine),
-            "errors": sum(1 for r in mine if r.get("error")),
-            "top1_exact": mean(v["exact"] for v in top),
-            "top1_gold": mean(v["gold"] for v in top),
-            "any_gold": mean(any(v["gold"] for v in j) for j in have),
-            "mean_gold": mean(mean(v["gold"] for v in j) for j in have),
-            "top1_accept": mean(accepted(v) for v in top),
-            "top1_quality": mean(quality(v) for v in top),
-            "distinct": mean(len({tuple(v["pair"]) for v in j}) / len(j) for j in have),
+            "tasks": tasks,
+            "answered": len(answered) / tasks,
+            "top1_exact": share(lambda j: j[0]["exact"]),
+            "top1_gold": share(lambda j: j[0]["gold"]),
+            "any_gold": share(lambda j: any(v["gold"] for v in j)),
+            "mean_gold": share(lambda j: mean(v["gold"] for v in j)),
+            "top1_accept": share(lambda j: accepted(j[0])),
+            "top1_quality": mean(quality(j[0]) for j in answered),
+            "distinct": mean(len({tuple(v["pair"]) for v in j}) / len(j) for j in answered),
             "tokens": mean(
                 (r.get("usage") or {}).get("input_tokens", 0)
                 + (r.get("usage") or {}).get("output_tokens", 0)
@@ -421,7 +426,7 @@ def summarize(rows):
 
 COLUMNS = [
     ("tasks", "tasks", "{:>5}"),
-    ("errors", "err", "{:>4}"),
+    ("answered", "answered", "{:>8.0%}"),
     ("top1_exact", "top1 exact", "{:>10.1%}"),
     ("top1_gold", "top1 gold", "{:>9.1%}"),
     ("any_gold", "any@K gold", "{:>10.1%}"),
